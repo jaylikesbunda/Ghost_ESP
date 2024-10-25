@@ -1,6 +1,8 @@
 #include "managers/views/main_menu_screen.h"
 #include "managers/views/music_visualizer.h"
 #include "managers/views/flappy_ghost_screen.h"
+#include "managers/views/nes_emulator_view.h"
+#include "managers/sd_card_manager.h"
 #include <stdio.h>
 
 
@@ -18,6 +20,7 @@ static menu_item_t menu_items[] = {
     {"WiFi", &wifi},
     {"Rave", &rave},
     {"Flap", &GESPFlappyghost}
+    {"NES", NULL}
 };
 
 static int num_items = sizeof(menu_items) / sizeof(menu_items[0]);
@@ -86,6 +89,17 @@ static void handle_menu_item_selection(int item_index) {
         case 3:
             printf("Flappy Ghost Selected\n");
             display_manager_switch_view(&flappy_bird_view);
+        case 4: 
+            printf("NES Emulator Selected\n");
+            if (sd_card_exists("/mnt"))
+            {
+                display_manager_switch_view(&nes_emulator_view);
+            }
+            else 
+            {
+                // Error Popup Here
+            }
+            break;
         default:
             printf("Unknown menu item selected\n");
             break;
@@ -142,6 +156,7 @@ void main_menu_create(void) {
     menu_items[1].border_color = lv_color_make(0, 255, 0);
     menu_items[2].border_color = lv_color_make(147, 112, 219);
     menu_items[3].border_color = lv_color_make(255, 165, 0);
+    menu_items[4].border_color = lv_color_make(255, 0, 165);
 
     display_manager_fill_screen(lv_color_black());
 

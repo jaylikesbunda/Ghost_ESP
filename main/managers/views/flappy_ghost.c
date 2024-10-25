@@ -228,8 +228,8 @@ int flappy_bird_check_collision(lv_obj_t *bird, lv_obj_t *pipe) {
     int padding = 2;
     int bird_x = lv_obj_get_x(bird);
     int bird_y = lv_obj_get_y(bird);
-    int bird_width = 10; 
-    int bird_height = 10;
+    int bird_width = 32; 
+    int bird_height = 32;
 
     int pipe_x = lv_obj_get_x(pipe);
     int pipe_gap_y = lv_obj_get_y(pipe);

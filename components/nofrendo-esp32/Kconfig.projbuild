@@ -1,0 +1,168 @@
+menu "Nofrendo ESP32-specific configuration"
+
+choice NOFRENDO_HARDWARE
+	prompt "Hardware to run on"
+	default ESP_WROVER_KIT_V2_ILI
+	help
+		This emulator can run on various types of hardware. Select what you have here.
+
+config HW_WROVERKIT_V1
+	bool "ESP_Wrover_Kit v1 (red PCB)"
+
+config HW_WROVERKIT_V2
+	bool "ESP_Wrover_Kit v2 (black PCB)"
+
+config HW_CUSTOM
+	bool "Custom hardware"
+
+endchoice
+
+choice HW_LCD_TYPE_SEL
+	prompt "LCD type"
+	depends on HW_CUSTOM || HW_WROVERKIT_V2
+
+config HW_LCD_TYPE_ILI
+	bool "ILI9341 LCD"
+
+config HW_LCD_TYPE_ST
+	bool "ST7789V LCD"
+
+endchoice
+
+config HW_WROVERKIT
+	bool
+	default n if HW_CUSTOM
+	default y if HW_WROVERKIT_V1
+	default y if HW_WROVERKIT_V2
+
+
+config HW_LCD_TYPE
+	int
+	default 0 if HW_WROVERKIT_V1
+	default 0 if HW_LCD_TYPE_ILI
+	default 1 if HW_LCD_TYPE_ST
+
+
+config HW_LCD_MOSI_GPIO_CUST
+	int "LCD MOSI pin"
+	depends on HW_CUSTOM
+	range 1 35
+	default 25
+
+config HW_LCD_CLK_GPIO_CUST
+	int "LCD CLK pin"
+	depends on HW_CUSTOM
+	range 1 35
+	default 23
+
+config HW_LCD_CS_GPIO_CUST
+	int "LCD CS pin"
+	depends on HW_CUSTOM
+	range 1 35
+	default 19
+
+config HW_LCD_DC_GPIO_CUST
+	int "LCD DC pin"
+	depends on HW_CUSTOM
+	range 1 35
+	default 22
+
+config HW_LCD_RESET_GPIO_CUST
+	int "LCD RESET pin"
+	depends on HW_CUSTOM
+	range 1 35
+	default 21
+
+config HW_LCD_BL_GPIO_CUST
+	int "LCD Backlight Enable pin"
+	depends on HW_CUSTOM
+	range 1 35
+	default 5
+
+config HW_INV_BL_CUST
+	bool "Invert backlight output"
+	default n
+	depends on HW_CUSTOM
+
+
+config HW_INV_BL
+	bool
+	default HW_INBV_BL_CUST if HW_CUSTOM
+	default n if HW_WROVERKIT_V1
+	default y if HW_WROVERKIT_V2
+
+config HW_LCD_MISO_GPIO
+	int
+	default HW_LCD_MISO_GPIO_CUST if HW_CUSTOM
+	default 25 if HW_WROVERKIT
+
+config HW_LCD_MOSI_GPIO
+	int
+	default HW_LCD_MOSI_GPIO_CUST if HW_CUSTOM
+	default 23 if HW_WROVERKIT
+
+config HW_LCD_CLK_GPIO
+	int
+	default HW_LCD_CLK_GPIO_CUST if HW_CUSTOM
+	default 19 if HW_WROVERKIT
+
+config HW_LCD_CS_GPIO
+	int
+	default HW_LCD_CS_GPIO_CUST if HW_CUSTOM
+	default 22 if HW_WROVERKIT
+
+config HW_LCD_DC_GPIO
+	int
+	default HW_LCD_DC_GPIO_CUST if HW_CUSTOM
+	default 21 if HW_WROVERKIT
+
+config HW_LCD_RESET_GPIO
+	int
+	default HW_LCD_RESET_GPIO_CUST if HW_CUSTOM
+	default 18 if HW_WROVERKIT
+
+config HW_LCD_BL_GPIO
+	int
+	default HW_LCD_BL_GPIO_CUST if HW_CUSTOM
+	default 5 if HW_WROVERKIT
+
+
+config SOUND_ENA
+	bool "Analog audio on GPIO26"
+	default n
+	help 
+		ESP32 will output 0-3.3V analog audio signal on GPIO26.
+
+
+config HW_PSX_ENA
+	bool "Enable PSX controller input"
+	default y
+	help
+		If you connect a PSX/PS2 controller to the following GPIOs, you can control the NES.
+
+
+config HW_PSX_CLK
+	int "PSX controller CLK GPIO pin"
+	depends on HW_PSX_ENA
+	range 1 35
+	default 14
+
+config HW_PSX_DAT
+	int "PSX controller DATa GPIO pin"
+	depends on HW_PSX_ENA
+	range 1 35
+	default 27
+
+config HW_PSX_ATT
+	int "PSX controller ATTention GPIO pin"
+	depends on HW_PSX_ENA
+	range 1 35
+	default 16
+
+config HW_PSX_CMD
+	int "PSX controller CoMmanD GPIO pin"
+	depends on HW_PSX_ENA
+	range 1 35
+	default 2
+
+endmenu
