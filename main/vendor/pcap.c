@@ -13,60 +13,34 @@
 #include "managers/sd_card_manager.h"
 
 #define RADIOTAP_HEADER_LEN 8
-
 static const char *PCAP_TAG = "PCAP";
 
-esp_err_t pcap_init(void) {
-    if (pcap_mutex != NULL) {
-        // Already initialized
-        return ESP_OK;
-    }
-    
-    pcap_mutex = xSemaphoreCreateMutex();
-    if (pcap_mutex == NULL) {
-        ESP_LOGE(PCAP_TAG, "Failed to create PCAP mutex");
-        return ESP_FAIL;
-    }
-    
-    ESP_LOGI(PCAP_TAG, "PCAP mutex initialized successfully");
-    return ESP_OK;
-}
-
 esp_err_t pcap_write_global_header(FILE* f) {
-    pcap_global_header_t header = {
-        .magic_number = 0xa1b2c3d4,
-        .version_major = 2,
-        .version_minor = 4,
-        .thiszone = 0,
-        .sigfigs = 0,
-        .snaplen = 65535,
-        .network = 127  // DLT_IEEE802_11_RADIO
-    };
+    // Initialize PCAP file header with standard values
+    pcap_global_header_t global_header;
+    global_header.magic_number = 0xa1b2c3d4;    // Standard PCAP magic
+    global_header.version_major = 2;
+    global_header.version_minor = 4;
+    global_header.thiszone = 0;                 // Use UTC timezone
+    global_header.sigfigs = 0;
+    global_header.snaplen = 65535;              // Max packet length
+    global_header.network = 127;                // 802.11 radio format
 
-    if (f == NULL)
-    {
+    if (f == NULL) {
+        // When no file is open, write to serial
         const char* mark_begin = "[BUF/BEGIN]";
         const size_t mark_begin_len = strlen(mark_begin);
         const char* mark_close = "[BUF/CLOSE]";
         const size_t mark_close_len = strlen(mark_close);
 
         uart_write_bytes(UART_NUM_0, mark_begin, mark_begin_len);
-
-        
-        uart_write_bytes(UART_NUM_0, (const char*)&header, sizeof(header));
-
-        
+        uart_write_bytes(UART_NUM_0, (const char*)&global_header, sizeof(global_header));
         uart_write_bytes(UART_NUM_0, mark_close, mark_close_len);
-
-        
-        const char* newline = "\n";
-        uart_write_bytes(UART_NUM_0, newline, 1);
+        uart_write_bytes(UART_NUM_0, "\n", 1);
         return ESP_OK;
-    }
-    else 
-    {
-        size_t written = fwrite(&header, 1, sizeof(header), f);
-        return (written == sizeof(header)) ? ESP_OK : ESP_FAIL;
+    } else {
+        size_t written = fwrite(&global_header, 1, sizeof(global_header), f);
+        return (written == sizeof(global_header)) ? ESP_OK : ESP_FAIL;
     }
 }
 
@@ -76,13 +50,6 @@ void get_next_pcap_file_name(char *file_name_buffer, const char* base_name) {
 }
 
 esp_err_t pcap_file_open(const char* base_file_name) {
-    // First ensure PCAP is initialized
-    esp_err_t init_ret = pcap_init();
-    if (init_ret != ESP_OK) {
-        ESP_LOGE(PCAP_TAG, "Failed to initialize PCAP");
-        return init_ret;
-    }
-
     char file_name[MAX_FILE_NAME_LENGTH];
     
     if (sd_card_exists("/mnt/ghostesp/pcaps"))
@@ -103,8 +70,85 @@ esp_err_t pcap_file_open(const char* base_file_name) {
     return ESP_OK;
 }
 
+static bool is_valid_tag_length(uint8_t tag_num, uint8_t tag_len) {
+    switch (tag_num) {
+        case 9:   // Hopping Pattern Table
+            return tag_len >= 4;
+        case 32:  // Power Constraint
+            return tag_len == 1;
+        case 33:  // Power Capability
+            return tag_len == 2;
+        case 35:  // TPC Report
+            return tag_len == 2;
+        case 36:  // Channels
+            return tag_len >= 3;
+        case 37:  // Channel Switch Announcement
+            return tag_len == 3;
+        case 38:  // Measurement Request
+            return tag_len >= 3;
+        case 39:  // Measurement Report
+            return tag_len >= 3;
+        case 41:  // IBSS DFS
+            return tag_len >= 7;
+        case 45:  // HT Capabilities
+            return tag_len == 26;
+        case 47:  // HT Operation
+            return tag_len >= 22;
+        case 48:  // RSN
+            return tag_len >= 2;
+        case 51:  // AP Channel Report
+            return tag_len >= 3;
+        case 61:  // HT Operation
+            return tag_len >= 22;
+        case 74:  // Overlapping BSS Scan Parameters
+            return tag_len == 14;
+        case 107: // Interworking
+            return tag_len >= 1;
+        case 127: // Extended Capabilities
+            return tag_len >= 1;
+        case 142: // Page Slice
+            return tag_len >= 3;
+        case 191: // VHT Capabilities
+            return tag_len == 12;
+        case 192: // VHT Operation
+            return tag_len >= 5;
+        case 195: // VHT Transmit Power Envelope
+            return tag_len >= 2;
+        case 216: // Target Wake Time
+            return tag_len >= 4;
+        case 221: // Vendor Specific
+            return tag_len >= 3;
+        case 232: // DMG Operation
+            return tag_len >= 5;
+        case 235: // S1G Beacon Compatibility
+            return tag_len >= 7;
+        case 255: // Extended tag
+            return tag_len >= 1;
+        default:
+            return true;  // All other tags can have any length
+    }
+}
+static bool is_valid_beacon_fixed_params(const uint8_t* frame, size_t offset, size_t max_len) {
+    if (offset + 12 > max_len) return false;
+    
+    // Skip timestamp (8 bytes) as it can be any value
+    
+    // Check beacon interval (2 bytes) - typically between 1-65535
+    uint16_t beacon_interval = frame[offset + 8] | (frame[offset + 9] << 8);
+    if (beacon_interval == 0) return false;
+    
+    // Check capability info (2 bytes) - must have some bits set
+    uint16_t capability = frame[offset + 10] | (frame[offset + 11] << 8);
+    if ((capability & 0x0001) == 0 && (capability & 0x0002) == 0) {
+        // At least one of ESS or IBSS must be set
+        return false;
+    }
+    
+    return true;
+}
+
 static size_t calculate_wifi_frame_length(const uint8_t* frame, size_t max_len) {
-    if (max_len < 2) return 0;
+    if (frame == NULL || max_len < 2) return 0;
     
     uint16_t frame_control = frame[0] | (frame[1] << 8);
     uint8_t type = (frame_control >> 2) & 0x3;
@@ -112,45 +156,61 @@ static size_t calculate_wifi_frame_length(const uint8_t* frame, size_t max_len) 
     uint8_t to_ds = (frame_control >> 8) & 0x1;
     uint8_t from_ds = (frame_control >> 9) & 0x1;
     
-    // Start with MAC header
     size_t length = 24;  // Basic MAC header length
     
-    // Handle different frame types
     switch (type) {
         case 0x0:  // Management frames
-            // Add fixed parameters for beacons and probe responses
-            if (subtype == 0x8 || subtype == 0x5) {  // Beacon or Probe Response
-                length += 12;  // timestamp(8) + beacon_interval(2) + capability_info(2)
-            }
-            else if (subtype == 0xD) {  // Action frame
-                // Action frame has category(1) + action(1) at minimum
-                length += 2;
-                // Use remaining frame length since action frame body is variable
-                if (max_len > length) {
-                    length = max_len;
-                }
-            }
+            if (max_len < length) return max_len;
             
-            // Parse tagged parameters if we have enough data
-            if (max_len > length + 2) {
+            // Handle fixed parameters
+            switch (subtype) {
+                case 0x8:  // Beacon
+                case 0x5:  // Probe Response
+                    if (max_len < length + 12) return length;
+                    if (subtype == 0x8 && !is_valid_beacon_fixed_params(frame, length, max_len)) {
+                        return length;
+                    }
+                    length += 12;
+                    break;
+                    
+                case 0x0:  // Association Request
+                    if (max_len < length + 4) return length;
+                    length += 4;
+                    break;
+                    
+                case 0xb:  // Authentication
+                    if (max_len < length + 6) return length;
+                    length += 6;
+                    break;
+                    
+                case 0xd:  // Action
+                    if (max_len < length + 1) return length;
+                    length += 1;
+                    break;
+            }
+
+            // Process tagged parameters
+            if (max_len > length) {
                 size_t pos = length;
+                size_t remaining = max_len - pos;
+                
                 while (pos + 2 <= max_len) {
                     uint8_t tag_num = frame[pos];
                     uint8_t tag_len = frame[pos + 1];
-                    
-                    // Check if we can safely read this tag
+
                     if (pos + 2 + tag_len > max_len) {
+                        length = pos;
                         break;
                     }
-                    
-                    pos += 2 + tag_len;  // num(1) + len(1) + payload(len)
-                    
-                    // Check for padding or end of tags
-                    if (tag_num == 0 && tag_len == 0) {
+
+                    if (!is_valid_tag_length(tag_num, tag_len)) {
+                        length = pos;
                         break;
                     }
+
+                    pos += 2 + tag_len;
+                    length = pos;
                 }
-                length = pos;
             }
             break;
             
@@ -164,33 +224,30 @@ static size_t calculate_wifi_frame_length(const uint8_t* frame, size_t max_len) 
                     length = 10;
                     break;
                 default:
-                    length = 16;  // Default for other control frames
+                    length = 16;
             }
             break;
             
         case 0x2:  // Data frames
-            // Determine address field length based on To/From DS flags
             if (to_ds && from_ds) {
-                length = 30;  // 24 + 6 (four address fields)
+                if (max_len < 30) return max_len;
+                length = 30;
             }
             
-            // Check for QoS data frames (subtypes 0x8 to 0xF)
-            if ((subtype & 0x8) != 0) {
-                length += 2;  // Add QoS Control field
+            if ((subtype & 0x8) != 0) {  // QoS data
+                if (max_len < length + 2) return length;
+                length += 2;
             }
             
-            // If there's a frame body, include it
             if (max_len > length) {
-                // Data frames must have at least 8 bytes for LLC/SNAP
                 size_t data_len = max_len - length;
                 if (data_len >= 8) {  // Minimum LLC/SNAP header
-                    length = max_len;  // Include the entire frame body
+                    length = max_len;
                 }
             }
             break;
     }
     
-    // Ensure we don't return a length longer than the actual packet
     return (length <= max_len) ? length : max_len;
 }
 
@@ -200,16 +257,10 @@ esp_err_t pcap_write_packet_to_buffer(const void* packet, size_t length) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    if (xSemaphoreTake(pcap_mutex, pdMS_TO_TICKS(1000)) != pdTRUE) {
-        ESP_LOGE(PCAP_TAG, "Failed to take mutex");
-        return ESP_ERR_TIMEOUT;
-    }
-
     const uint8_t* frame = (const uint8_t*)packet;
-    size_t actual_length = calculate_wifi_frame_length(frame, length);
+    size_t valid_length = calculate_wifi_frame_length(frame, length);
     
-    if (actual_length == 0) {
-        xSemaphoreGive(pcap_mutex);
+    if (valid_length == 0) {
         ESP_LOGE(PCAP_TAG, "Invalid frame length calculated");
         return ESP_ERR_INVALID_ARG;
     }
@@ -219,7 +270,7 @@ esp_err_t pcap_write_packet_to_buffer(const void* packet, size_t length) {
     pcap_packet_header_t packet_header;
 
     // Add radiotap header length to packet length
-    size_t total_length = actual_length + RADIOTAP_HEADER_LEN;
+    size_t total_length = valid_length + RADIOTAP_HEADER_LEN;
     packet_header.ts_sec = tv.tv_sec;
     packet_header.ts_usec = tv.tv_usec;
     packet_header.incl_len = total_length;
@@ -227,20 +278,18 @@ esp_err_t pcap_write_packet_to_buffer(const void* packet, size_t length) {
 
     size_t total_packet_size = sizeof(packet_header) + total_length;
     
-    // Validate total size
     if (total_packet_size > BUFFER_SIZE) {
-        xSemaphoreGive(pcap_mutex);
-        ESP_LOGE(PCAP_TAG, "Packet too large for buffer: %zu", total_packet_size);
+        ESP_LOGE(PCAP_TAG, 
+            "Packet too large: %zu", 
+            total_packet_size);
         return ESP_ERR_NO_MEM;
     }
 
-    // If buffer doesn't have space, flush first
     if (buffer_offset + total_packet_size > BUFFER_SIZE) {
-        ESP_LOGI(PCAP_TAG, "Buffer full, flushing %zu bytes", buffer_offset);
+        ESP_LOGI(PCAP_TAG, 
+            "Buffer full, flushing...");
         esp_err_t ret = pcap_flush_buffer_to_file();
         if (ret != ESP_OK) {
-            xSemaphoreGive(pcap_mutex);
-            ESP_LOGE(PCAP_TAG, "Buffer flush failed");
             return ret;
         }
     }
@@ -259,94 +308,67 @@ esp_err_t pcap_write_packet_to_buffer(const void* packet, size_t length) {
     buffer_offset += RADIOTAP_HEADER_LEN;
 
     // Write actual packet data
-    memcpy(pcap_buffer + buffer_offset, packet, actual_length);
-    buffer_offset += actual_length;
+    memcpy(pcap_buffer + buffer_offset, packet, valid_length);
+    buffer_offset += valid_length;
 
-    xSemaphoreGive(pcap_mutex);
-    
-    ESP_LOGD(PCAP_TAG, "Added packet: size=%zu, buffer at: %zu", actual_length, buffer_offset);
+    ESP_LOGD(PCAP_TAG, "Added packet: size=%zu, buffer at: %zu", valid_length, buffer_offset);
     
     return ESP_OK;
 }
 
-
 esp_err_t pcap_flush_buffer_to_file() {
-    if (buffer_offset == 0) {
-        return ESP_OK;  // Nothing to flush
-    }
-
-    bool needs_mutex = (xTaskGetCurrentTaskHandle() != xSemaphoreGetMutexHolder(pcap_mutex));
-    
-    if (needs_mutex) {
-        if (xSemaphoreTake(pcap_mutex, portMAX_DELAY) != pdTRUE) {
-            ESP_LOGE(PCAP_TAG, "Failed to take mutex");
-            return ESP_ERR_TIMEOUT;
-        }
-    }
-
-    esp_err_t ret = ESP_OK;
-    
     if (pcap_file == NULL) {
-        ESP_LOGE(PCAP_TAG, "PCAP file is not open. Flushing to Serial...");
+        ESP_LOGE(PCAP_TAG, 
+            "No PCAP file open. Using Serial...");
+        
+        // Write buffer markers and content to serial
         const char* mark_begin = "[BUF/BEGIN]";
         const size_t mark_begin_len = strlen(mark_begin);
         const char* mark_close = "[BUF/CLOSE]";
         const size_t mark_close_len = strlen(mark_close);
 
         uart_write_bytes(UART_NUM_0, mark_begin, mark_begin_len);
+
+        
         uart_write_bytes(UART_NUM_0, (const char*)pcap_buffer, buffer_offset);
+
+        
         uart_write_bytes(UART_NUM_0, mark_close, mark_close_len);
-        uart_write_bytes(UART_NUM_0, "\n", 1);
+
+        
+        const char* newline = "\n";
+        uart_write_bytes(UART_NUM_0, newline, 1);
+
         
         buffer_offset = 0;
-        goto exit;
+        return ESP_OK;
     }
 
-    // Validate buffer contains at least one complete packet
-    if (buffer_offset < sizeof(pcap_packet_header_t)) {
-        ESP_LOGE(PCAP_TAG, "Buffer contains incomplete packet header");
-        ret = ESP_FAIL;
-        goto exit;
-    }
-
-    // Write entire buffer
+    
     size_t written = fwrite(pcap_buffer, 1, buffer_offset, pcap_file);
     if (written != buffer_offset) {
-        ESP_LOGE(PCAP_TAG, "Failed to write buffer: %zu of %zu written", written, buffer_offset);
-        ret = ESP_FAIL;
-        goto exit;
+        ESP_LOGE(PCAP_TAG, "Failed to write buffer to file.");
+        return ESP_FAIL;
     }
 
-    // Force flush to disk
-    if (fflush(pcap_file) != 0) {
-        ESP_LOGE(PCAP_TAG, "Failed to flush file buffer");
-        ret = ESP_FAIL;
-        goto exit;
-    }
+    ESP_LOGI(PCAP_TAG, "Flushed %zu bytes to PCAP file.", buffer_offset);
 
-    ESP_LOGI(PCAP_TAG, "Flushed %zu bytes to file", written);
-
-    memset(pcap_buffer, 0, BUFFER_SIZE);
+    
     buffer_offset = 0;
 
-exit:
-    xSemaphoreGive(pcap_mutex);
-    return ret;
+    return ESP_OK;
 }
-
 
 void pcap_file_close() {
     if (pcap_file != NULL) {
-        if (xSemaphoreTake(pcap_mutex, portMAX_DELAY) == pdTRUE) {
-            if (buffer_offset > 0) {
-                ESP_LOGI(PCAP_TAG, "Flushing remaining buffer before closing file.");
-                pcap_flush_buffer_to_file();
-            }
-
-            fclose(pcap_file);
-            pcap_file = NULL;
-            ESP_LOGI(PCAP_TAG, "PCAP file closed.");
-            xSemaphoreGive(pcap_mutex);
+        if (buffer_offset > 0) {
+            ESP_LOGI(PCAP_TAG, "Flushing remaining buffer before closing file.");
+            pcap_flush_buffer_to_file();
         }
+
+        // Close the file
+        fclose(pcap_file);
+        pcap_file = NULL;
+        ESP_LOGI(PCAP_TAG, "PCAP file closed.");
     }
 }
