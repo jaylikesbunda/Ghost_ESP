@@ -56,13 +56,14 @@ esp_err_t csv_file_open(const char* base_file_name) {
 
     esp_err_t ret = csv_write_header(csv_file);
     if (ret != ESP_OK) {
-        printf("Failed to write CSV header.");
+        printf("Failed to write CSV header.\n");
         fclose(csv_file);
         csv_file = NULL;
         return ret;
     }
 
-    printf("CSV file %s opened and header written.", file_name);
+    printf("CSV file opened: \n%s\n", 
+           file_name);
     return ESP_OK;
 }
 
@@ -82,7 +83,8 @@ esp_err_t csv_write_data_to_buffer(wardriving_data_t *data) {
 
 
     if (buffer_offset + len > BUFFER_SIZE) {
-        printf("Buffer full, flushing to file.\n");
+        printf("Buffer full,\n"
+               "flushing to file...\n");
         esp_err_t ret = csv_flush_buffer_to_file();
         if (ret != ESP_OK) {
             return ret;
@@ -98,7 +100,8 @@ esp_err_t csv_write_data_to_buffer(wardriving_data_t *data) {
 
 esp_err_t csv_flush_buffer_to_file() {
     if (csv_file == NULL) {
-        printf("CSV file is not open. Flushing to Serial...");
+        printf("CSV file not open.\n"
+               "Flushing to Serial...\n");
         const char* mark_begin = "[BUF/BEGIN]";
         const char* mark_close = "[BUF/CLOSE]";
 
@@ -113,11 +116,14 @@ esp_err_t csv_flush_buffer_to_file() {
 
     size_t written = fwrite(csv_buffer, 1, buffer_offset, csv_file);
     if (written != buffer_offset) {
-        printf("Failed to write buffer to file.\n");
+        printf("Failed to write\n"
+               "buffer to file.\n");
         return ESP_FAIL;
     }
 
-    printf("Flushed %zu bytes to CSV file.\n", buffer_offset);
+    printf("Flushed %zu bytes\n"
+           "to CSV file.\n", 
+           buffer_offset);
     buffer_offset = 0;
 
     return ESP_OK;
@@ -126,7 +132,8 @@ esp_err_t csv_flush_buffer_to_file() {
 void csv_file_close() {
     if (csv_file != NULL) {
         if (buffer_offset > 0) {
-            printf("Flushing remaining buffer before closing file.\n");
+            printf("Flushing buffer\n"
+                   "before closing...\n");
             csv_flush_buffer_to_file();
         }
         fclose(csv_file);

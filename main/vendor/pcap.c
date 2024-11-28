@@ -16,16 +16,18 @@
 static const char *PCAP_TAG = "PCAP";
 
 esp_err_t pcap_write_global_header(FILE* f) {
+    // Initialize PCAP file header with standard values
     pcap_global_header_t global_header;
-    global_header.magic_number = 0xa1b2c3d4;
+    global_header.magic_number = 0xa1b2c3d4;    // Standard PCAP magic
     global_header.version_major = 2;
     global_header.version_minor = 4;
-    global_header.thiszone = 0;  // UTC
+    global_header.thiszone = 0;                 // Use UTC timezone
     global_header.sigfigs = 0;
-    global_header.snaplen = 65535;  // Changed to match old version
-    global_header.network = 127;   // Changed to DLT_IEEE802_11_RADIO
+    global_header.snaplen = 65535;              // Max packet length
+    global_header.network = 127;                // 802.11 radio format
 
     if (f == NULL) {
+        // When no file is open, write to serial
         const char* mark_begin = "[BUF/BEGIN]";
         const size_t mark_begin_len = strlen(mark_begin);
         const char* mark_close = "[BUF/CLOSE]";
@@ -277,12 +279,15 @@ esp_err_t pcap_write_packet_to_buffer(const void* packet, size_t length) {
     size_t total_packet_size = sizeof(packet_header) + total_length;
     
     if (total_packet_size > BUFFER_SIZE) {
-        ESP_LOGE(PCAP_TAG, "Packet too large for buffer: %zu", total_packet_size);
+        ESP_LOGE(PCAP_TAG, 
+            "Packet too large: %zu", 
+            total_packet_size);
         return ESP_ERR_NO_MEM;
     }
 
     if (buffer_offset + total_packet_size > BUFFER_SIZE) {
-        ESP_LOGI(PCAP_TAG, "Buffer full, flushing to file.");
+        ESP_LOGI(PCAP_TAG, 
+            "Buffer full, flushing...");
         esp_err_t ret = pcap_flush_buffer_to_file();
         if (ret != ESP_OK) {
             return ret;
@@ -313,8 +318,10 @@ esp_err_t pcap_write_packet_to_buffer(const void* packet, size_t length) {
 
 esp_err_t pcap_flush_buffer_to_file() {
     if (pcap_file == NULL) {
-        ESP_LOGE(PCAP_TAG, "PCAP file is not open. Flushing to Serial...");
-
+        ESP_LOGE(PCAP_TAG, 
+            "No PCAP file open. Using Serial...");
+        
+        // Write buffer markers and content to serial
         const char* mark_begin = "[BUF/BEGIN]";
         const size_t mark_begin_len = strlen(mark_begin);
         const char* mark_close = "[BUF/CLOSE]";
@@ -334,7 +341,6 @@ esp_err_t pcap_flush_buffer_to_file() {
 
         
         buffer_offset = 0;
-
         return ESP_OK;
     }
 
