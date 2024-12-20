@@ -4,6 +4,10 @@
 #include <esp_timer.h>
 #include "vendor/GPS/MicroNMEA.h"
 
+#ifndef CONFIG_IDF_TARGET_ESP32S2
+#include "host/ble_gap.h"
+#endif
+
 void wifi_wps_detection_callback(void *buf, wifi_promiscuous_pkt_type_t type);
 void wifi_beacon_scan_callback(void* buf, wifi_promiscuous_pkt_type_t type);
 void wifi_deauth_scan_callback(void* buf, wifi_promiscuous_pkt_type_t type);
