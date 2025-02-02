@@ -38,7 +38,7 @@ Ghost ESP turns your ESP32 into a powerful, cheap and helpful wireless testing t
 - **RGB LED Modes:** Customizable LED feedback (Stealth, Normal, Rainbow).
 - **DIAL & Chromecast V2 Support:** Interact with DIAL-capable devices (e.g., Roku, Chromecast).
 - **Flappy Ghost and Rave Modes** Extra Apps for boards with displays!
-
+> We do NOT support BLE Spam at this time.
 ---
 
 ## Supported ESP32 Models
@@ -50,7 +50,7 @@ Ghost ESP turns your ESP32 into a powerful, cheap and helpful wireless testing t
 - **ESP32 C6**
 
 > **Note:** Feature availability may vary by model.
-
+> We do NOT support BLE Spam
 ---
 
 ## Ghost ESP vs. ESP32 Marauder
