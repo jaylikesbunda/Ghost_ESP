@@ -4,7 +4,7 @@
 
 Ghost ESP turns your ESP32 into a powerful, cheap and helpful wireless testing tool. Built on ESP-IDF.
 
-> **Note:** This is an **Alpha release**. Some features (e.g., BLE spam, display support) are still under development and may be unstable.
+> **Note:** This is an **Alpha release**. Some features are still under development and may be unstable.
 
 ---
 
