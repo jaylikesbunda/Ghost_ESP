@@ -49,7 +49,7 @@ Ghost ESP turns your ESP32 into a powerful, cheap and helpful wireless testing t
 - **ESP32 S3**
 - **ESP32 C6**
 
-> **Note:** Feature availability may vary by model. Advanced functions (like BLE spam) may be unstable on resource-constrained devices.
+> **Note:** Feature availability may vary by model.
 
 ---
 
