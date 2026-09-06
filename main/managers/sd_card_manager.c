@@ -1602,13 +1602,8 @@ esp_err_t sd_card_resume_from_usb_msc(void) {
    * this recreates the mount from scratch without re-probing the card. */
   ff_diskio_register_sdmmc(pdrv, card);
   char drv[3] = {(char)('0' + pdrv), ':', 0};
-  esp_vfs_fat_conf_t conf = {
-      .base_path = SD_MOUNT_POINT,
-      .fat_drive = drv,
-      .max_files = 3,
-  };
   FATFS *fs = NULL;
-  esp_err_t err = esp_vfs_fat_register(&conf, &fs);
+  esp_err_t err = esp_vfs_fat_register(SD_MOUNT_POINT, drv, 3, &fs);
   if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
     ESP_LOGE(TAG, "USB MSC resume: VFS register failed: %s", esp_err_to_name(err));
     ff_diskio_unregister(pdrv);
