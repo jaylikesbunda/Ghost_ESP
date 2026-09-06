@@ -1,7 +1,7 @@
 {
   "id": "doom_port",
   "name": "Doom Port",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "author": "GhostESP",
   "description": "DoomGeneric port with a responsive, letterboxed RGB565 renderer.",
   "category": "Games",

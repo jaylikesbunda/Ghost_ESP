@@ -18,7 +18,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install ghostbt
-        run: pip install ghostbt==0.5.7
+        run: pip install ghostbt==0.5.8
 
       - name: Cache ESP-IDF
         uses: actions/cache@v4

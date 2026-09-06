@@ -1,7 +1,7 @@
 {
   "id": "doom_port",
   "name": "Doom Port",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "author": "GhostESP",
   "description": "DoomGeneric with a large-screen P4 layout and touch controls.",
   "category": "Games",
