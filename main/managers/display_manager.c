@@ -1218,6 +1218,15 @@ void update_status_bar(bool wifi_enabled, bool bt_enabled, bool sd_card_mounted,
     lv_label_set_text_fmt(battery_label, "%s %d%%", battery_symbol, batteryPercentage);
   }
 
+#ifdef CONFIG_CROWPANEL_1P28_ROTARY
+  /* The round panel has only a compact top pill. Keep secondary status
+   * badges out of it; Wi-Fi is the single persistent system indicator and
+   * the active view owns feature-specific state such as USB HID readiness. */
+  lv_obj_add_flag(level_label, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_add_flag(sd_label, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_add_flag(bt_label, LV_OBJ_FLAG_HIDDEN);
+#endif
+
   lv_obj_invalidate(status_bar);
 
   // set status bar icon colors based on power save mode and AP state
@@ -1314,7 +1323,9 @@ static void status_update_cb(lv_timer_t *timer) {
     if (strcmp(lv_label_get_text(level_label), level_text) != 0) {
       lv_label_set_text(level_label, level_text);
     }
+#ifndef CONFIG_CROWPANEL_1P28_ROTARY
     lv_obj_clear_flag(level_label, LV_OBJ_FLAG_HIDDEN);
+#endif
   }
 }
 
@@ -1393,44 +1404,82 @@ void display_manager_add_status_bar(const char *CurrentMenuName) {
         lvgl_obj_del_safe(&old_bar);
     }
     status_bar = lv_obj_create(lv_scr_act());
+#ifdef CONFIG_CROWPANEL_1P28_ROTARY
+  /* Keep the status strip inside the circular aperture rather than placing
+   * text/icons at the square framebuffer corners. */
+  lv_obj_set_size(status_bar, 112, 20);
+  lv_obj_align(status_bar, LV_ALIGN_TOP_MID, 0, 16);
+#else
   lv_obj_set_size(status_bar, LV_HOR_RES, GUI_STATUS_BAR_H);
   lv_obj_align(status_bar, LV_ALIGN_TOP_MID, 0, 0);
+#endif
   lv_obj_set_style_bg_color(status_bar, status_bg_color, LV_PART_MAIN);
   lv_obj_set_scrollbar_mode(status_bar, LV_SCROLLBAR_MODE_OFF);
+#ifdef CONFIG_CROWPANEL_1P28_ROTARY
+  lv_obj_set_style_border_side(status_bar, LV_BORDER_SIDE_FULL, LV_PART_MAIN);
+  lv_obj_set_style_border_width(status_bar, 1, LV_PART_MAIN);
+#else
   lv_obj_set_style_border_side(status_bar, LV_BORDER_SIDE_BOTTOM, LV_PART_MAIN);
   lv_obj_set_style_border_width(status_bar, 2, LV_PART_MAIN);
+#endif
   lv_obj_set_style_border_color(status_bar, lv_color_hex(theme_palette_get_accent(theme)), LV_PART_MAIN);
   lv_obj_set_style_border_opa(status_bar, LV_OPA_40, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(status_bar, 0, LV_PART_MAIN);
   lv_obj_clear_flag(status_bar, LV_OBJ_FLAG_SCROLLABLE);
+#ifdef CONFIG_CROWPANEL_1P28_ROTARY
+  lv_obj_set_style_radius(status_bar, LV_RADIUS_CIRCLE, LV_PART_MAIN);
+#else
   lv_obj_set_style_radius(status_bar, 0, LV_PART_MAIN);
+#endif
 
   lv_obj_t *left_container = lv_obj_create(status_bar);
   lv_obj_remove_style_all(left_container);
-  lv_obj_set_size(left_container, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-  lv_obj_set_flex_flow(left_container, LV_FLEX_FLOW_ROW);
-  lv_obj_align(left_container, LV_ALIGN_LEFT_MID,
-#ifdef CONFIG_IS_ATOMS3R
-               1, /* tighter inset: use more of the 128px width */
+#ifdef CONFIG_CROWPANEL_1P28_ROTARY
+  lv_obj_set_size(left_container, 72, 20);
 #else
-               GUI_GRID,
+  lv_obj_set_size(left_container, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+#endif
+  lv_obj_set_flex_flow(left_container, LV_FLEX_FLOW_ROW);
+  lv_obj_set_flex_align(left_container, LV_FLEX_ALIGN_CENTER,
+                        LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  lv_obj_align(left_container, LV_ALIGN_CENTER,
+#ifdef CONFIG_IS_ATOMS3R
+               0,
+#else
+               0,
 #endif
                0);
   mainlabel = lv_label_create(left_container);
   lv_label_set_text(mainlabel, label_text);
   lv_obj_set_style_text_color(mainlabel, lv_color_hex(theme_palette_get_text(theme)), 0);
   lv_label_set_long_mode(mainlabel, LV_LABEL_LONG_DOT);
+#ifdef CONFIG_CROWPANEL_1P28_ROTARY
+  lv_obj_set_width(mainlabel, 72);
+  lv_obj_set_style_text_align(mainlabel, LV_TEXT_ALIGN_CENTER, 0);
+#else
   lv_obj_set_width(mainlabel, LV_HOR_RES / 2 - GUI_SAFEAREA_HOR);
+#endif
   lv_obj_set_style_text_font(mainlabel, accessibility_get_font_small(), 0);
 
   lv_obj_t *right_container = lv_obj_create(status_bar);
   lv_obj_remove_style_all(right_container);
+#ifdef CONFIG_CROWPANEL_1P28_ROTARY
+  lv_obj_set_size(right_container, 28, 20);
+#else
   lv_obj_set_size(right_container, lv_pct(50), GUI_STATUS_BAR_H);
+#endif
   lv_obj_set_flex_flow(right_container, LV_FLEX_FLOW_ROW);
   lv_obj_set_flex_align(right_container, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+#ifdef CONFIG_CROWPANEL_1P28_ROTARY
+  lv_obj_set_style_pad_column(right_container, 0, 0);
+#else
   lv_obj_set_style_pad_column(right_container, GUI_GRID, 0);
+#endif
   lv_obj_align(right_container, LV_ALIGN_RIGHT_MID,
 #ifdef CONFIG_IS_ATOMS3R
                -1, /* tighter inset: push icons further right */
+#elif defined(CONFIG_CROWPANEL_1P28_ROTARY)
+               -4,
 #else
                -GUI_GRID,
 #endif
@@ -1489,17 +1538,35 @@ void display_manager_add_status_bar(const char *CurrentMenuName) {
   }
 }
 
+void display_manager_set_status_bar_hidden(bool hidden) {
+  if (!status_bar || !lv_obj_is_valid(status_bar)) return;
+  if (hidden) {
+    lv_obj_add_flag(status_bar, LV_OBJ_FLAG_HIDDEN);
+  } else {
+    lv_obj_clear_flag(status_bar, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_move_foreground(status_bar);
+  }
+}
+
 void display_manager_raise_status_bar(void) {
   if (!status_bar || !lv_obj_is_valid(status_bar)) return;
   lv_obj_set_parent(status_bar, lv_layer_top());
+#ifdef CONFIG_CROWPANEL_1P28_ROTARY
+  lv_obj_align(status_bar, LV_ALIGN_TOP_MID, 0, 16);
+#else
   lv_obj_align(status_bar, LV_ALIGN_TOP_MID, 0, 0);
+#endif
   lv_obj_move_foreground(status_bar);
 }
 
 void display_manager_restore_status_bar(void) {
   if (!status_bar || !lv_obj_is_valid(status_bar)) return;
   lv_obj_set_parent(status_bar, lv_scr_act());
+#ifdef CONFIG_CROWPANEL_1P28_ROTARY
+  lv_obj_align(status_bar, LV_ALIGN_TOP_MID, 0, 16);
+#else
   lv_obj_align(status_bar, LV_ALIGN_TOP_MID, 0, 0);
+#endif
   lv_obj_move_foreground(status_bar);
 }
 
@@ -1754,6 +1821,24 @@ ESP_LOGI(TAG, "T-Deck trackball ISRs registered");
   lv_init();
   ESP_LOGI(TAG, "display_manager: LVGL core init done, free internal RAM: %d bytes", 
            (int)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+#ifdef CONFIG_CROWPANEL_1P28_ROTARY
+  /* The factory firmware enables both board power rails before touching the
+   * display. GPIO40 is the active-low power indicator. Do this before the
+   * generic SPI/LVGL driver so the panel and touch controller are powered
+   * during their reset/probe sequences. */
+  gpio_config_t crowpanel_power = {
+    .pin_bit_mask = (1ULL << 1) | (1ULL << 2) | (1ULL << 40),
+    .mode = GPIO_MODE_OUTPUT,
+    .pull_up_en = GPIO_PULLUP_DISABLE,
+    .pull_down_en = GPIO_PULLDOWN_DISABLE,
+    .intr_type = GPIO_INTR_DISABLE,
+  };
+  gpio_config(&crowpanel_power);
+  gpio_set_level(1, 1);
+  gpio_set_level(2, 1);
+  gpio_set_level(40, 0);
+  ESP_LOGI(TAG, "CrowPanel rotary power rails enabled (GPIO1/GPIO2), indicator active");
+#endif
 #if defined(CONFIG_USE_CARDPUTER) || defined(CONFIG_USE_CARDPUTER_ADV) || defined(CONFIG_IS_ATOMS3R)
   init_m5gfx_display();
 #elif defined(CONFIG_USE_TDISPLAY_S3)
@@ -2096,9 +2181,16 @@ ESP_LOGI(TAG, "T-Deck trackball ISRs registered");
     joystick_init(&enc_button, CONFIG_ENCODER_KEY,
                   500 /*hold ms*/, true);
 
-    // Run encoder sampling at 1 kHz for cleaner quadrature decoding
+    // Run encoder sampling at 1 kHz for cleaner quadrature decoding. The
+    // CrowPanel sampler outranks the touch/input task so an I2C transaction
+    // cannot hide quadrature phases during a quick spin.
+#ifdef CONFIG_CROWPANEL_1P28_ROTARY
+    const UBaseType_t encoder_poll_priority = HARDWARE_INPUT_TASK_PRIORITY + 1;
+#else
+    const UBaseType_t encoder_poll_priority = HARDWARE_INPUT_TASK_PRIORITY;
+#endif
     if (xTaskCreate(encoder_poll_task, "EncPoll", 2048, NULL,
-                    HARDWARE_INPUT_TASK_PRIORITY, &encoder_poll_task_handle) != pdPASS) {
+                    encoder_poll_priority, &encoder_poll_task_handle) != pdPASS) {
         ESP_LOGE(TAG, "Failed to create encoder poll task");
     }
 
@@ -3225,14 +3317,22 @@ static void dm_raise_status_bar_for_overlay(void) {
     lv_label_set_text(mainlabel, "Locked");
   }
   lv_obj_set_parent(status_bar, lv_layer_top());
+#ifdef CONFIG_CROWPANEL_1P28_ROTARY
+  lv_obj_align(status_bar, LV_ALIGN_TOP_MID, 0, 16);
+#else
   lv_obj_align(status_bar, LV_ALIGN_TOP_MID, 0, 0);
+#endif
   lv_obj_move_foreground(status_bar);
 }
 
 static void dm_restore_status_bar_after_overlay(void) {
   if (!status_bar || !lv_obj_is_valid(status_bar)) return;
   lv_obj_set_parent(status_bar, lv_scr_act());
+#ifdef CONFIG_CROWPANEL_1P28_ROTARY
+  lv_obj_align(status_bar, LV_ALIGN_TOP_MID, 0, 16);
+#else
   lv_obj_align(status_bar, LV_ALIGN_TOP_MID, 0, 0);
+#endif
   lv_obj_move_foreground(status_bar);
   if (mainlabel && lv_obj_is_valid(mainlabel)) {
     lv_label_set_text(mainlabel, s_pre_lock_status_title);
@@ -3907,13 +4007,27 @@ void hardware_input_task(void *pvParameters) {
           is_backlight_dimmed = false;
           is_backlight_off = false;
         } else {
+#ifdef CONFIG_CROWPANEL_1P28_ROTARY
+          /* Fast spins can include accelerated detents. Drain the decoder in
+           * one burst so they reach the audio view on this hardware tick. */
+          const int max_encoder_events_per_tick = 12;
+#else
           const int max_encoder_events_per_tick = 4;
+#endif
           for (int i = 0; i < max_encoder_events_per_tick; i++) {
               encoder_direction_t raw_dir = encoder_peek_direction(&g_encoder);
               if (raw_dir == ENCODER_DIR_NONE) break;
 
               int8_t dir = (int8_t)raw_dir;
-              if (settings_get_encoder_invert_direction(&G_Settings)) {
+              bool invert_encoder = settings_get_encoder_invert_direction(&G_Settings);
+#ifdef CONFIG_CROWPANEL_1P28_ROTARY
+              /* The factory firmware treats the A-rising/B-low phase as
+               * its increment path. The shared four-state decoder reports
+               * that physical cycle as CCW, so normalize the board once;
+               * the user setting still provides the final invert toggle. */
+              invert_encoder = !invert_encoder;
+#endif
+              if (invert_encoder) {
                   dir = (int8_t)-dir;
               }
 
@@ -3930,8 +4044,23 @@ void hardware_input_task(void *pvParameters) {
         }
     }
 
-    /* push-switch -> treat like "button" */
-    if (joystick_just_pressed(&enc_button)) {
+    /* push-switch -> treat like "button". The factory uses a 20 ms debounce;
+     * retain that edge filter for the CrowPanel while leaving other encoder
+     * boards on their established input path. */
+    bool encoder_button_pressed = joystick_just_pressed(&enc_button);
+#ifdef CONFIG_CROWPANEL_1P28_ROTARY
+    static TickType_t crowpanel_last_button_tick = 0;
+    if (encoder_button_pressed) {
+      TickType_t now = xTaskGetTickCount();
+      if (crowpanel_last_button_tick != 0 &&
+          (now - crowpanel_last_button_tick) < pdMS_TO_TICKS(20)) {
+        encoder_button_pressed = false;
+      } else {
+        crowpanel_last_button_tick = now;
+      }
+    }
+#endif
+    if (encoder_button_pressed) {
         // treat an encoder click as "touch"
         last_touch_time = xTaskGetTickCount();
         if (is_backlight_dimmed || is_backlight_off) {

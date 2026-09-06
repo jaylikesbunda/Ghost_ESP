@@ -73,6 +73,7 @@ jobs:
           - { name: "Flipper_JCMK_GPS",        idf_target: "esp32s2", sdkconfig_file: "configs/sdkconfig.flipper.jcmk_gps",               zip_name: "Flipper_JCMK_GPS.zip" }
           - { name: "T-Deck",                  idf_target: "esp32s3", sdkconfig_file: "configs/sdkconfig.tdeck",                           zip_name: "LilyGo-T-Deck.zip" }
           - { name: "TEmbedC1101",             idf_target: "esp32s3", sdkconfig_file: "configs/sdkconfig.TEmbedC1101",                     zip_name: "LilyGo-TEmbedC1101.zip", ota: true, ota_slot_size: 6291456, board_key: "LilyGo TEmbedC1101" }
+          - { name: "Elecrow CrowPanel 1.28-inch Rotary", idf_target: "esp32s3", sdkconfig_file: "configs/sdkconfig.crowpanel_1p28_rotary", zip_name: "CrowPanel_1.28inch_Rotary.zip" }
           - { name: "GhostLink P1 Core",     idf_target: "esp32s3", sdkconfig_file: "configs/sdkconfig.ghostlink_p1_core",           zip_name: "GhostLink_P1_Core.zip" }
           - { name: "GhostLink P1 Peer",     idf_target: "esp32c3", sdkconfig_file: "configs/sdkconfig.ghostlink_p1_peer",           zip_name: "GhostLink_P1_Peer.zip" }
           - { name: "TDongleS3",               idf_target: "esp32s3", sdkconfig_file: "configs/sdkconfig.TDongleS3",                       zip_name: "LilyGo-TDongleS3.zip", ota: true, ota_slot_size: 6291456, board_key: "LilyGo T-Dongle-S3" }

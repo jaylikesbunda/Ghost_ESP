@@ -1541,6 +1541,11 @@ void main_menu_create(void) {
     // Check if navigation buttons should be shown based on user setting
     // Also respect the original logic for device capabilities
     bool should_show_nav_buttons = settings_get_nav_buttons_enabled(&G_Settings);
+#ifdef CONFIG_CROWPANEL_1P28_ROTARY
+    /* The panel is physically circular; keep the edge pixels clear and let
+     * the encoder/touch swipe provide previous/next navigation. */
+    should_show_nav_buttons = false;
+#endif
 #if GUI_LARGE_TOUCH_UI && defined(CONFIG_USE_TOUCHSCREEN)
     should_show_nav_buttons = false;
 #endif

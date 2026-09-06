@@ -19,10 +19,20 @@ static i2c_master_bus_handle_t s_cst820_bus = NULL;
 static i2c_master_dev_handle_t s_cst820_dev = NULL;
 static bool s_cst820_bus_owned = false;
 
-#if CONFIG_USE_TDISPLAY_S3
+#if CONFIG_CROWPANEL_1P28_ROTARY
+/* Elecrow's factory firmware uses Wire1 for the CST816D.  Keep the same
+ * controller/bus identity here while using the shared I2C manager so the
+ * touch reader remains serialized with the rest of GhostESP. */
+#define TOUCH_I2C_PORT 1
+#define TOUCH_INT_PIN 5
+#define TOUCH_RST_PIN 13
+#define TOUCH_SDA_PIN 6
+#define TOUCH_SCL_PIN 7
+#elif CONFIG_USE_TDISPLAY_S3
 /* T-Display S3: touch is a CST816 on SDA=18/SCL=17, INT=16, RESET=21.
  * The CYD defaults (INT=21, RST=25) are wrong here: GPIO 25 does not exist
  * on the ESP32-S3, and GPIO 21 is the touch RESET line, not the interrupt. */
+#define TOUCH_I2C_PORT 0
 #define TOUCH_INT_PIN 16
 #define TOUCH_RST_PIN 21
 #if defined(CONFIG_I2C_MANAGER_0_ENABLED)
@@ -33,6 +43,7 @@ static bool s_cst820_bus_owned = false;
 #define TOUCH_SCL_PIN 17
 #endif
 #else
+#define TOUCH_I2C_PORT 0
 #define TOUCH_INT_PIN CYD28_TouchC_INT
 #define TOUCH_RST_PIN CYD28_TouchC_RST
 #define TOUCH_SDA_PIN CYD28_TouchC_SDA
@@ -63,7 +74,7 @@ static void cst820_reset_pins(void) {
         vTaskDelay(pdMS_TO_TICKS(1));
         gpio_set_level(TOUCH_INT_PIN, 0);
         vTaskDelay(pdMS_TO_TICKS(1));
-#if CONFIG_USE_TDISPLAY_S3
+#if CONFIG_USE_TDISPLAY_S3 || CONFIG_CROWPANEL_1P28_ROTARY
         /* The CST816S drives INT as an open-drain output. Hand the pin back
          * to the IC instead of leaving it forced high, or its interrupt
          * (and test) pulses get shorted. */
@@ -81,7 +92,7 @@ static void cst820_reset_pins(void) {
 }
 
 void cst820_init(void) {
-    ESP_ERROR_CHECK(i2c_shared_get_or_create_bus(0, TOUCH_SDA_PIN, TOUCH_SCL_PIN,
+    ESP_ERROR_CHECK(i2c_shared_get_or_create_bus(TOUCH_I2C_PORT, TOUCH_SDA_PIN, TOUCH_SCL_PIN,
                                                  true, &s_cst820_bus, &s_cst820_bus_owned));
 
     cst820_reset_pins();
@@ -91,7 +102,13 @@ void cst820_init(void) {
          * 0x38 instead of the CST820 at 0x15. Probe both, they share the
          * same register layout. Retry a few times: the IC can take a moment
          * to come up after the reset pulse. */
-        const uint16_t probe_addrs[] = { I2C_ADDR_CST820, 0x38 };
+        const uint16_t probe_addrs[] = {
+#if CONFIG_CROWPANEL_1P28_ROTARY
+            I2C_ADDR_CST820
+#else
+            I2C_ADDR_CST820, 0x38
+#endif
+        };
         for (int attempt = 0; attempt < 3 && s_cst820_dev == NULL; attempt++) {
             for (size_t i = 0; i < sizeof(probe_addrs) / sizeof(probe_addrs[0]); i++) {
                 if (i2c_master_probe(s_cst820_bus, probe_addrs[i], 100) == ESP_OK) {
@@ -108,7 +125,11 @@ void cst820_init(void) {
             }
         }
         if (s_cst820_dev == NULL) {
+#if CONFIG_CROWPANEL_1P28_ROTARY
+            ESP_LOGE(TAG, "No CST816D-compatible touch IC detected at 0x15 on I2C1");
+#else
             ESP_LOGE(TAG, "No touch IC detected on I2C bus (probed 0x15, 0x38)");
+#endif
         }
     }
 
@@ -169,7 +190,7 @@ bool cst820_read(lv_indev_drv_t *drv, lv_indev_data_t *data) {
         if (finger == 1 && event_flag != 1) {
             int16_t x, y;
             convert_raw_xy(raw_x, raw_y, &x, &y);
-            if (x >= 0 && x < LV_HOR_RES && y >= 0 && y <= LV_VER_RES) {
+            if (x >= 0 && x < LV_HOR_RES && y >= 0 && y < LV_VER_RES) {
                 pending_x = x;
                 pending_y = y;
                 valid = true;

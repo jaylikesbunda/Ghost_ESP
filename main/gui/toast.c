@@ -19,6 +19,13 @@
 #define TOAST_PAD_V        10
 #define TOAST_ICON_GAP     10
 #define TOAST_Y_TARGET     (GUI_STATUS_BAR_H + 4)
+#elif defined(CONFIG_CROWPANEL_1P28_ROTARY)
+#define TOAST_MIN_HEIGHT   32
+#define TOAST_RADIUS       16
+#define TOAST_PAD_H        10
+#define TOAST_PAD_V        6
+#define TOAST_ICON_GAP     6
+#define TOAST_Y_TARGET     56
 #else
 #define TOAST_MIN_HEIGHT   32
 #define TOAST_RADIUS       8
@@ -126,8 +133,15 @@ static void toast_ensure_objects(void) {
 
     s_container = lv_obj_create(parent);
     lv_obj_remove_style_all(s_container);
-    lv_obj_set_size(s_container, LV_HOR_RES - GUI_SAFEAREA_HOR * 2, TOAST_MIN_HEIGHT);
-    lv_obj_set_pos(s_container, GUI_SAFEAREA_HOR, offscreen_y());
+#ifdef CONFIG_CROWPANEL_1P28_ROTARY
+    const lv_coord_t toast_width = 176;
+    const lv_coord_t toast_x = (LV_HOR_RES - toast_width) / 2;
+#else
+    const lv_coord_t toast_width = LV_HOR_RES - GUI_SAFEAREA_HOR * 2;
+    const lv_coord_t toast_x = GUI_SAFEAREA_HOR;
+#endif
+    lv_obj_set_size(s_container, toast_width, TOAST_MIN_HEIGHT);
+    lv_obj_set_pos(s_container, toast_x, offscreen_y());
     lv_obj_clear_flag(s_container, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(s_container, LV_OBJ_FLAG_HIDDEN);
     lv_obj_set_style_bg_opa(s_container, LV_OPA_COVER, 0);
@@ -148,7 +162,7 @@ static void toast_ensure_objects(void) {
 
     s_inner = lv_obj_create(s_container);
     lv_obj_remove_style_all(s_inner);
-    lv_obj_set_size(s_inner, LV_HOR_RES - GUI_SAFEAREA_HOR * 2 - 3 - TOAST_PAD_H * 2, TOAST_MIN_HEIGHT);
+    lv_obj_set_size(s_inner, toast_width - 3 - TOAST_PAD_H * 2, TOAST_MIN_HEIGHT);
     lv_obj_align(s_inner, LV_ALIGN_LEFT_MID, 3 + TOAST_PAD_H, 0);
     lv_obj_set_flex_flow(s_inner, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(s_inner, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);

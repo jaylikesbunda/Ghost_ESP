@@ -1374,6 +1374,11 @@ static void apps_plugin_reload_done(void *arg) {
     }
 
     bool should_show_nav_buttons = settings_get_nav_buttons_enabled(&G_Settings);
+#ifdef CONFIG_CROWPANEL_1P28_ROTARY
+    /* Side arrows land in the circular mask's corners.  Hero mode already
+     * exposes the current position through the bottom pips. */
+    should_show_nav_buttons = false;
+#endif
 #if GUI_LARGE_TOUCH_UI && defined(CONFIG_USE_TOUCHSCREEN)
     should_show_nav_buttons = false;
 #endif

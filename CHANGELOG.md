@@ -11,6 +11,7 @@ Untagged entries are by ([@jaylikesbunda](https://github.com/jaylikesbunda)). A 
 - Added a Country selector to Settings > Wi-Fi for display UI
 - Added support for setting IR TX/RX pins at runtime through the CLI or display UI settings menu
 - Added `dualwd` BLE + WiFi coexistence wardriving (exclusive to PSRAM devices), available from the CLI and GPS menu
+- Added Elecrow CrowPanel 1.28-inch rotary display support with USB Audio volume/mute control
 
 ## Revival v2.1.2
 

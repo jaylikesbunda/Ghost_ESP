@@ -1,5 +1,6 @@
 #include "gui/main_menu_layout.h"
 #include "gui/design_tokens.h"
+#include "sdkconfig.h"
 
 static int clamp_int(int value, int min, int max) {
     if (value < min) return min;
@@ -25,6 +26,18 @@ main_menu_layout_kind_t main_menu_layout_from_setting(uint8_t setting) {
 main_menu_layout_kind_t main_menu_layout_resolve_for_size(main_menu_layout_kind_t kind,
                                                           int screen_width,
                                                           int screen_height) {
+    /* The CrowPanel's LCD controller exposes a square framebuffer, but the
+     * physical aperture is round.  Use the single-focus hero presentation
+     * for both the main menu and app gallery so labels, icons, and selection
+     * chrome stay inside the circular safe area.  Encoder rotation and touch
+     * swipes remain the navigation model; side navigation buttons would sit in
+     * the masked corners. */
+#if defined(CONFIG_CROWPANEL_1P28_ROTARY)
+    (void)screen_width;
+    (void)screen_height;
+    return MAIN_MENU_LAYOUT_HERO;
+#endif
+
     /* A 128px square cannot display the carousel/hero chrome reliably. Use
      * the paginated launcher unless the user explicitly chose the list view. */
     if (screen_width <= 128 && screen_height <= 160 &&
@@ -45,6 +58,10 @@ void main_menu_layout_get_metrics_for_size(main_menu_layout_kind_t kind, int ite
 
     if (screen_width < 1) screen_width = 1;
     if (screen_height < 1) screen_height = 1;
+#if defined(CONFIG_CROWPANEL_1P28_ROTARY)
+    /* Generic views begin below the circular-safe status pill. */
+    status_bar_height = 36;
+#endif
     status_bar_height = clamp_int(status_bar_height, 0, screen_height);
     int content_height = screen_height - status_bar_height - GUI_HOME_SAFE_H;
     if (content_height < 60) content_height = screen_height;
@@ -124,6 +141,11 @@ void main_menu_layout_get_metrics_for_size(main_menu_layout_kind_t kind, int ite
          * carousel render path. */
         int min_dim = LV_MIN(screen_width, content_height);
         int icon_target = (int)(min_dim * 0.42f);
+#if defined(CONFIG_CROWPANEL_1P28_ROTARY)
+        /* Give the single focused item more visual weight on the small,
+         * circular aperture while leaving room for its one-line title. */
+        icon_target = (int)(min_dim * 0.46f);
+#endif
         if (min_dim <= 128) icon_target = (int)(min_dim * 0.48f);
         metrics->hero_icon_target = clamp_int(icon_target, 48, 176);
         metrics->hero_icon_y_offset = clamp_int(-((int)(metrics->hero_icon_target / 3)), -44, -14);
