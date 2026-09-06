@@ -12,6 +12,7 @@ Untagged entries are by ([@jaylikesbunda](https://github.com/jaylikesbunda)). A 
 - Added support for setting IR TX/RX pins at runtime through the CLI or display UI settings menu
 - Added `dualwd` BLE + WiFi coexistence wardriving (exclusive to PSRAM devices), available from the CLI and GPS menu
 - Added Elecrow CrowPanel 1.28-inch rotary display support with USB Audio volume/mute control
+- Fixed ESP32-C5 merged firmware failing to boot when flashed at `0x0` by placing the bootloader at the required `0x2000` offset - @yanxke (#395)
 
 ## Revival v2.1.2
 
