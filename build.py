@@ -721,7 +721,15 @@ def build_target(target: Dict[str, str], env: Dict[str, str], cmd_prefix: str = 
 
     if firmware_bin:
         # Determine offsets (adjust if needed for your project)
-        boot_offset = "0x1000" if target['idf_target'] in ["esp32", "esp32s2"] else "0x0"
+        # ESP32-C5's ROM expects the second-stage bootloader at 0x2000.
+        # Classic ESP32/S2 targets use 0x1000; preserve the existing
+        # placement for the remaining targets.
+        if target['idf_target'] == 'esp32c5':
+            boot_offset = "0x2000"
+        elif target['idf_target'] in ["esp32", "esp32s2"]:
+            boot_offset = "0x1000"
+        else:
+            boot_offset = "0x0"
         partition_offset = "0x8000"
         firmware_offset = "0x10000"
         import re
