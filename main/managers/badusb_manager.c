@@ -86,12 +86,31 @@ static const uint8_t hid_mouse_report_desc[] = {
     0xC0              // End Collection (Application)
 };
 
+static const uint8_t hid_consumer_report_desc[] = {
+    0x05, 0x0C,       // Usage Page (Consumer)
+    0x09, 0x01,       // Usage (Consumer Control)
+    0xA1, 0x01,       // Collection (Application)
+    0x15, 0x00,       //   Logical Minimum (0)
+    0x25, 0x01,       //   Logical Maximum (1)
+    0x75, 0x01,       //   Report Size (1)
+    0x95, 0x03,       //   Report Count (3)
+    0x0A, 0xE9, 0x00, //   Usage (Volume Increment)
+    0x0A, 0xEA, 0x00, //   Usage (Volume Decrement)
+    0x0A, 0xE2, 0x00, //   Usage (Mute)
+    0x81, 0x02,       //   Input (Data, Variable, Absolute)
+    0x75, 0x05,       //   Report Size (5)
+    0x95, 0x01,       //   Report Count (1)
+    0x81, 0x01,       //   Input (Constant)
+    0xC0              // End Collection
+};
+
 static bool s_initialized = false;
 static bool s_driver_installed = false;
 static bool s_active = false;
 static volatile bool s_stop_requested = false;
 
 #define MIN_KEY_DELAY_MS 10
+#define CONSUMER_HID_INTERVAL_MS 2
 
 static tusb_desc_device_t device_descriptor = {
     .bLength            = sizeof(tusb_desc_device_t),
@@ -113,19 +132,22 @@ static tusb_desc_device_t device_descriptor = {
 enum {
     ITF_NUM_HID_KEYBOARD,
     ITF_NUM_HID_MOUSE,
+    ITF_NUM_HID_CONSUMER,
     ITF_NUM_TOTAL
 };
 
 enum {
     HID_INSTANCE_KEYBOARD,
     HID_INSTANCE_MOUSE,
+    HID_INSTANCE_CONSUMER,
 };
 
 #define EPNUM_HID_KEYBOARD  0x81
 #define EPNUM_HID_MOUSE     0x82
+#define EPNUM_HID_CONSUMER  0x83
 
 // Each TUD_HID_DESC_LEN is 9+7+7 = 23 bytes
-#define BADUSB_CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + TUD_HID_DESC_LEN + TUD_HID_DESC_LEN)
+#define BADUSB_CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + TUD_HID_DESC_LEN + TUD_HID_DESC_LEN + TUD_HID_DESC_LEN)
 
 static const uint8_t configuration_descriptor[] = {
     TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, BADUSB_CONFIG_TOTAL_LEN, 0x00, 100),
@@ -133,6 +155,9 @@ static const uint8_t configuration_descriptor[] = {
                        sizeof(hid_keyboard_report_desc), EPNUM_HID_KEYBOARD, CFG_TUD_HID_EP_BUFSIZE, 10),
     TUD_HID_DESCRIPTOR(ITF_NUM_HID_MOUSE, 0, HID_ITF_PROTOCOL_MOUSE,
                        sizeof(hid_mouse_report_desc), EPNUM_HID_MOUSE, CFG_TUD_HID_EP_BUFSIZE, 10),
+    TUD_HID_DESCRIPTOR(ITF_NUM_HID_CONSUMER, 0, HID_ITF_PROTOCOL_NONE,
+                       sizeof(hid_consumer_report_desc), EPNUM_HID_CONSUMER,
+                       CFG_TUD_HID_EP_BUFSIZE, CONSUMER_HID_INTERVAL_MS),
 };
 
 static char mfr_string[33] = "Ghost ESP";
@@ -147,6 +172,7 @@ static const char *string_descriptors[] = {
 
 const uint8_t *tud_hid_descriptor_report_cb(uint8_t instance) {
     if (instance == ITF_NUM_HID_MOUSE) return hid_mouse_report_desc;
+    if (instance == ITF_NUM_HID_CONSUMER) return hid_consumer_report_desc;
     return hid_keyboard_report_desc;
 }
 
@@ -285,6 +311,30 @@ bool badusb_hid_mouse_wheel_send(int8_t wheel, uint8_t buttons) {
     return tud_hid_n_report(HID_INSTANCE_MOUSE, 0, report, sizeof(report));
 }
 
+bool badusb_manager_send_consumer(uint8_t control_mask) {
+    if (!s_active || control_mask == 0) return false;
+
+    int timeout = 100;
+    while (!tud_hid_n_ready(HID_INSTANCE_CONSUMER) && timeout-- > 0) {
+        vTaskDelay(pdMS_TO_TICKS(1));
+    }
+    if (!tud_hid_n_ready(HID_INSTANCE_CONSUMER)) return false;
+
+    uint8_t report = control_mask;
+    uint8_t release = 0;
+    if (!tud_hid_n_report(HID_INSTANCE_CONSUMER, 0, &report, 1)) return false;
+
+    /* Wait for the host to consume the press before submitting its release.
+     * The consumer endpoint polls every 2 ms, so this is both faster and more
+     * reliable than a fixed keyboard-oriented 10 ms delay. */
+    timeout = 100;
+    while (!tud_hid_n_ready(HID_INSTANCE_CONSUMER) && timeout-- > 0) {
+        vTaskDelay(pdMS_TO_TICKS(1));
+    }
+    if (!tud_hid_n_ready(HID_INSTANCE_CONSUMER)) return false;
+    return tud_hid_n_report(HID_INSTANCE_CONSUMER, 0, &release, 1);
+}
+
 // --- Mouse Jiggler ---
 
 static TaskHandle_t s_jiggler_task = NULL;
@@ -321,7 +371,10 @@ typedef enum {
     BADUSB_START_JIGGLER = 1,
     BADUSB_START_KEYBOARD = 2,
     BADUSB_START_TRACKPAD = 3,
+    BADUSB_START_CONSUMER = 4,
 } badusb_start_mode_t;
+
+static volatile bool s_consumer_mode = false;
 
 static void badusb_mode_start_task(void *arg) {
     badusb_start_mode_t mode = (badusb_start_mode_t)(uintptr_t)arg;
@@ -334,6 +387,12 @@ static void badusb_mode_start_task(void *arg) {
     }
     if (ret == ESP_OK) {
         s_active = true;
+        /* The HID endpoints can be used while the host is still enumerating;
+         * expose the mode immediately so the UI does not discard early knob
+         * presses during the mount wait. */
+        if (mode == BADUSB_START_CONSUMER) {
+            s_consumer_mode = true;
+        }
         ret = badusb_wait_for_mount();
     }
 
@@ -355,6 +414,8 @@ static void badusb_mode_start_task(void *arg) {
         if (esp_comm_manager_is_connected()) {
             esp_comm_manager_send_command("badusb", "status trackpad");
         }
+    } else if (ret == ESP_OK && mode == BADUSB_START_CONSUMER) {
+        glog("BadUSB: Consumer Control mode started\n");
     }
 
     if (ret != ESP_OK) {
@@ -364,6 +425,7 @@ static void badusb_mode_start_task(void *arg) {
         s_keyboard_mode = false;
         s_trackpad_active = false;
         s_trackpad_buttons = 0;
+        s_consumer_mode = false;
         if (esp_comm_manager_is_connected()) {
             esp_comm_manager_send_command("badusb", "status done");
         }
@@ -437,6 +499,31 @@ esp_err_t badusb_manager_trackpad_stop(void) {
         esp_comm_manager_send_command("badusb", "status done");
     }
     return ESP_OK;
+}
+
+esp_err_t badusb_manager_consumer_start(void) {
+    if (s_mode_start_task || s_active) return ESP_ERR_INVALID_STATE;
+    if (xTaskCreate(badusb_mode_start_task, "badusb_mode", 6144,
+                    (void *)(uintptr_t)BADUSB_START_CONSUMER, 5, &s_mode_start_task) != pdPASS) {
+        s_mode_start_task = NULL;
+        return ESP_FAIL;
+    }
+    return ESP_OK;
+}
+
+esp_err_t badusb_manager_consumer_stop(void) {
+    s_stop_requested = true;
+    s_consumer_mode = false;
+    for (int i = 0; i < 100 && s_mode_start_task; i++) {
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+    if (s_driver_installed) badusb_uninstall_driver();
+    s_active = false;
+    return ESP_OK;
+}
+
+bool badusb_manager_is_consumer_mode(void) {
+    return s_consumer_mode;
 }
 
 bool badusb_manager_is_trackpad(void) {
@@ -697,7 +784,9 @@ esp_err_t badusb_manager_stop(void) {
     s_jiggler_stop = true;
     s_trackpad_active = false;
     s_trackpad_buttons = 0;
+    s_consumer_mode = false;
     s_active = false;
+    if (s_driver_installed) badusb_uninstall_driver();
     ESP_LOGI(TAG, "BadUSB stopped");
     return ESP_OK;
 }
@@ -821,6 +910,10 @@ esp_err_t badusb_manager_execute_file(const char *path) {
 
 bool badusb_manager_is_active(void) {
     return s_active;
+}
+
+bool badusb_manager_is_usb_mounted(void) {
+    return s_active && tud_mounted();
 }
 
 int badusb_manager_list_scripts(char scripts[][64], int max_scripts) {

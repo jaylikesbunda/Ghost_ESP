@@ -403,6 +403,7 @@ def get_build_targets() -> List[Dict[str, str]]:
         {"name": "T-Deck", "idf_target": "esp32s3", "sdkconfig_file": "configs/sdkconfig.tdeck", "zip_name": "LilyGo-T-Deck.zip"},
         {"name": "TEmbedC1101", "idf_target": "esp32s3", "sdkconfig_file": "configs/sdkconfig.TEmbedC1101", "zip_name": "LilyGo-TEmbedC1101.zip"},
         {"name": "S3TWatch", "idf_target": "esp32s3", "sdkconfig_file": "configs/sdkconfig.S3TWatch", "zip_name": "LilyGo-S3TWatch-2020.zip"},
+        {"name": "Elecrow CrowPanel 1.28-inch Rotary", "idf_target": "esp32s3", "sdkconfig_file": "configs/sdkconfig.crowpanel_1p28_rotary", "zip_name": "CrowPanel_1.28inch_Rotary.zip"},
         {"name": "TDisplayS3-Touch", "idf_target": "esp32s3", "sdkconfig_file": "configs/sdkconfig.TDisplayS3-Touch", "zip_name": "LilyGo-TDisplayS3-Touch.zip"},
         {"name": "JCMK_DevBoardPro", "idf_target": "esp32", "sdkconfig_file": "configs/sdkconfig.JCMK_DevBoardPro", "zip_name": "JCMK_DevBoardPro.zip"},
         {"name": "RabbitLabs_Minion", "idf_target": "esp32", "sdkconfig_file": "configs/sdkconfig.minion", "zip_name": "RabbitLabs_Minion.zip"},

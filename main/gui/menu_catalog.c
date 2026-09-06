@@ -37,6 +37,9 @@
 #ifdef CONFIG_HAS_BADBLE
 #include "managers/views/badble_view.h"
 #endif
+#if defined(CONFIG_CROWPANEL_1P28_ROTARY) && defined(CONFIG_HAS_BADUSB)
+#include "managers/views/crowpanel_audio_view.h"
+#endif
 #ifdef CONFIG_HAS_AUDIO_PLAYER
 #include "managers/views/audio_player_screen.h"
 #endif
@@ -103,6 +106,11 @@ static const menu_catalog_item_t builtin_items[] = {
 #endif
 #ifdef CONFIG_HAS_BADBLE
     ITEM("badble", "BadBLE", "bluetooth", bluetooth, badble_view, 0, MENU_PLACE_MAIN),
+#endif
+#if defined(CONFIG_CROWPANEL_1P28_ROTARY) && defined(CONFIG_HAS_BADUSB)
+    /* The rotary board's primary job is audio control; keep it on the
+     * circular home gallery instead of hiding it behind Apps. */
+    ITEM("audio_master", "USB Audio", "speaker_50dp_FFFFFF_FILL0_wght400_GRAD0_opsz48", speaker_50dp_FFFFFF_FILL0_wght400_GRAD0_opsz48, crowpanel_audio_view, 0, MENU_PLACE_MAIN),
 #endif
     ITEM("ghostlink", "GhostLink", "dualcomm", dualcomm, options_menu_view, OT_DualComm, MENU_PLACE_MAIN),
     ITEM("ethernet", "Ethernet", "lan_50dp_FFFFFF_FILL0_wght400_GRAD0_opsz48", lan_50dp_FFFFFF_FILL0_wght400_GRAD0_opsz48, ethernet_screen_view, 0, MENU_PLACE_MAIN),

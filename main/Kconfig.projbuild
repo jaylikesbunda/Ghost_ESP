@@ -84,6 +84,17 @@ menu "Ghost ESP Options"
         help
             Set the height of the TFT display.
 
+    config CROWPANEL_1P28_ROTARY
+        bool "Elecrow CrowPanel 1.28-inch rotary display"
+        default n
+        depends on IDF_TARGET_ESP32S3 && WITH_SCREEN
+        help
+            Enable the Elecrow CrowPanel 1.28-inch HMI with its round
+            240x240 GC9A01 SPI display, CST816D touch controller, rotary
+            encoder, encoder push switch, and GPIO46 PWM backlight.
+            This also selects the round-display-safe main menu and app
+            gallery presentation.
+
     config CROWPANEL_EPAPER_42
         bool "Use Elecrow CrowPanel 4.2-inch e-paper"
         default n
@@ -1925,4 +1936,3 @@ menu "Ghost ESP Options"
     endmenu
 
 endmenu
-

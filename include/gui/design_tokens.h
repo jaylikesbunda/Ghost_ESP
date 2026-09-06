@@ -18,7 +18,13 @@
 #define GUI_RADIUS_LG        24
 #else
 #define GUI_GRID             4
+#if defined(CONFIG_CROWPANEL_1P28_ROTARY)
+/* The visible aperture is round: reserve enough top space for generic views
+ * to begin below the centered status pill rather than behind its lower edge. */
+#define GUI_STATUS_BAR_H     36
+#else
 #define GUI_STATUS_BAR_H     24
+#endif
 #define GUI_CONTROL_H        48
 #define GUI_CONTENT_MAX_W    LV_HOR_RES
 #define GUI_OPTIONS_LIST_WIDTH LV_MIN(LV_HOR_RES, GUI_CONTENT_MAX_W)
