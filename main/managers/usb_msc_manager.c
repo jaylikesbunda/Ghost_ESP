@@ -2,6 +2,17 @@
 
 #ifdef CONFIG_HAS_USB_MSC_SD
 
+// The TinyUSB MSC class and its buffer-size symbol must stay enabled together
+// with this feature (HAS_USB_MSC_SD selects TINYUSB_MSC_ENABLED in
+// main/Kconfig.projbuild). Fail here with a clear message instead of deep
+// inside the TinyUSB headers if a board config ever drops it again.
+#ifndef CONFIG_TINYUSB_MSC_ENABLED
+#define CONFIG_TINYUSB_MSC_ENABLED 0
+#endif
+#if !CONFIG_TINYUSB_MSC_ENABLED
+#error "CONFIG_HAS_USB_MSC_SD requires CONFIG_TINYUSB_MSC_ENABLED"
+#endif
+
 #include "managers/usb_msc_manager.h"
 #include "managers/sd_card_manager.h"
 #include "managers/usb_keyboard_manager.h"

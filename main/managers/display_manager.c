@@ -1615,18 +1615,18 @@ void display_manager_add_status_bar(const char *CurrentMenuName) {
   lv_obj_set_size(left_container, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
 #endif
   lv_obj_set_flex_flow(left_container, LV_FLEX_FLOW_ROW);
-#if (GUI_LARGE_SCREEN || defined(CONFIG_CROWPANEL_ADVANCE_SMALL_SPI_LCD)) && !defined(CONFIG_CROWPANEL_1P28_ROTARY)
-  lv_obj_set_flex_align(left_container, LV_FLEX_ALIGN_START,
-                        LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-  lv_obj_align(left_container, LV_ALIGN_LEFT_MID, GUI_GRID, 0);
-#else
+#ifdef CONFIG_CROWPANEL_1P28_ROTARY
   lv_obj_set_flex_align(left_container, LV_FLEX_ALIGN_CENTER,
                         LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-  lv_obj_align(left_container, LV_ALIGN_CENTER,
-#ifdef CONFIG_IS_ATOMS3R
-               0,
+  lv_obj_align(left_container, LV_ALIGN_CENTER, 0, 0);
 #else
-               0,
+  lv_obj_set_flex_align(left_container, LV_FLEX_ALIGN_START,
+                        LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  lv_obj_align(left_container, LV_ALIGN_LEFT_MID,
+#ifdef CONFIG_IS_ATOMS3R
+               1,
+#else
+               GUI_GRID,
 #endif
                0);
 #endif
@@ -1642,6 +1642,7 @@ void display_manager_add_status_bar(const char *CurrentMenuName) {
   lv_obj_set_style_text_align(mainlabel, LV_TEXT_ALIGN_LEFT, 0);
 #else
   lv_obj_set_width(mainlabel, LV_HOR_RES / 2 - GUI_SAFEAREA_HOR);
+  lv_obj_set_style_text_align(mainlabel, LV_TEXT_ALIGN_LEFT, 0);
 #endif
   lv_obj_set_style_text_font(mainlabel, accessibility_get_font_small(), 0);
 
