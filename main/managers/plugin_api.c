@@ -325,6 +325,7 @@ static plugin_permission_t plugin_api_permission_from_string(const char *value) 
     if (strcmp(value, "settings") == 0) return PLUGIN_PERMISSION_SETTINGS;
     if (strcmp(value, "zigbee") == 0 || strcmp(value, "ieee802154") == 0) return PLUGIN_PERMISSION_ZIGBEE;
     if (strcmp(value, "nrf24") == 0) return PLUGIN_PERMISSION_NRF24;
+    if (strcmp(value, "espnow") == 0 || strcmp(value, "esp_now") == 0) return PLUGIN_PERMISSION_ESPNOW;
     return 0;
 }
 
