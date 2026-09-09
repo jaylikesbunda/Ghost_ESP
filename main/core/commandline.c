@@ -546,6 +546,7 @@ void register_commands() {
     register_command("ir", handle_ir_cmd);
 #endif
     register_command("nrf24", handle_nrf24_cmd);
+    register_command("lora", handle_lora_cmd);
     register_command("audio", handle_audio_cmd);
     register_command("badusb", handle_badusb_cmd);
 #ifdef CONFIG_HAS_USB_MSC_SD

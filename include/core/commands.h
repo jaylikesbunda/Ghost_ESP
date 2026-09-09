@@ -291,6 +291,9 @@ void handle_subghz_cmd(int argc, char **argv);
 // NRF24 analyzer
 void handle_nrf24_cmd(int argc, char **argv);
 
+// LoRa (SX1262/SX1276/LLCC68, Meshtastic-lite target)
+void handle_lora_cmd(int argc, char **argv);
+
 // Printer command
 void handle_printer_command(int argc, char **argv);
 

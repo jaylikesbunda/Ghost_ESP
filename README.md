@@ -673,8 +673,46 @@ Special thanks to:
       </a><br/>
       <sub>proxmark3 - RFID research tooling</sub>
     </td>
+    <td align="center">
+      <a href="https://meshtastic.org">
+        <img src="https://raw.githubusercontent.com/meshtastic/design/master/Meshtastic%20Powered%20Logo/M-POWERED_minified.svg" width="80" height="80" alt="M-Powered by Meshtastic"/><br/>
+        <b>Meshtastic®</b>
+      </a><br/>
+      <sub>Mesh framing, crypto, and PhoneAPI reference</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <a href="https://github.com/jgromes/RadioLib">
+        <img src="https://github.com/jgromes.png" width="80" height="80" style="border-radius: 50%;" alt="jgromes"/><br/>
+        <b>RadioLib</b>
+      </a><br/>
+      <sub>SX126x driver reference</sub>
+    </td>
+    <td align="center">
+      <a href="https://github.com/agl/curve25519-donna">
+        <img src="https://github.com/agl.png" width="80" height="80" style="border-radius: 50%;" alt="agl"/><br/>
+        <b>curve25519-donna</b>
+      </a><br/>
+      <sub>X25519 for Meshtastic PKI directs (BSD, vendored verbatim)</sub>
+    </td>
+    <td align="center">
+      <a href="https://github.com/HighCodeh/TentacleOS">
+        <img src="https://github.com/HighCodeh.png" width="80" height="80" style="border-radius: 50%;" alt="HighCodeh"/><br/>
+        <b>TentacleOS</b>
+      </a><br/>
+      <sub>LoRa modem preset table cross-check (GPL-3.0, no code used)</sub>
+    </td>
   </tr>
 </table>
+
+### Attributions
+
+LoRa region slot math, header layout, AES-CTR nonce, PKI wire format, and BLE PhoneAPI sequencing are modeled on Meshtastic® firmware and protobufs (GPL-3.0). SX126x bring-up references RadioLib documentation. X25519 is vendored verbatim from curve25519-donna (Google Inc., BSD, see [LICENSES/curve25519-donna-BSD.txt](LICENSES/curve25519-donna-BSD.txt)); all other GhostESP LoRa code is original under this project's GPL-3.0.
+
+> Meshtastic® is a registered trademark of Meshtastic LLC. Meshtastic software components are released under various licenses, see GitHub for details. No warranty is provided - use at your own risk.
+
+GhostESP is not affiliated with or endorsed by Meshtastic.
 
 ---
 

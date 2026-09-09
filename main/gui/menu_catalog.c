@@ -31,6 +31,9 @@
 #if defined(CONFIG_HAS_SUBGHZ) || defined(CONFIG_HAS_SUBGHZ_REMOTE)
 #include "managers/views/subghz_view.h"
 #endif
+#if defined(CONFIG_HAS_LORA) && defined(CONFIG_WITH_SCREEN)
+#include "managers/views/lora_view.h"
+#endif
 #if defined(CONFIG_HAS_BADUSB) || defined(CONFIG_HAS_BADUSB_REMOTE)
 #include "managers/views/badusb_view.h"
 #endif
@@ -100,6 +103,9 @@ static const menu_catalog_item_t builtin_items[] = {
 #endif
 #if defined(CONFIG_HAS_SUBGHZ) || defined(CONFIG_HAS_SUBGHZ_REMOTE)
     ITEM("subghz", "SubGHz", "subghz", subghz, subghz_view, 0, MENU_PLACE_MAIN),
+#endif
+#if defined(CONFIG_HAS_LORA) && defined(CONFIG_WITH_SCREEN)
+    ITEM("lora", "LoRa", "subghz", subghz, lora_view, 0, MENU_PLACE_MAIN),
 #endif
 #if defined(CONFIG_HAS_BADUSB) || defined(CONFIG_HAS_BADUSB_REMOTE)
     ITEM("badusb", "BadUSB", "usb", usb, badusb_view, 0, MENU_PLACE_MAIN),

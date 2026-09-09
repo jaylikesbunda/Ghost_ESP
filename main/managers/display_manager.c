@@ -149,6 +149,173 @@ static volatile bool g_cached_batt_valid = false;
 #include "lvgl_i2c/i2c_manager.h"
 #endif
 
+#if defined(CONFIG_CROWPANEL_ADVANCE_5_LCD) || defined(CONFIG_CROWPANEL_ADVANCE_7_LCD)
+#define CROWPANEL_ADVANCE_CONTROLLER_ADDR      0x30
+#define CROWPANEL_ADVANCE_CONTROLLER_WAKE_GPIO GPIO_NUM_1
+#define CROWPANEL_ADVANCE_CONTROLLER_WAKE_CMD  250u
+#define CROWPANEL_ADVANCE_BACKLIGHT_MAX_RAW     245u
+
+/* Advance 5/7 panels use an STC8 controller for backlight and touch power. */
+static esp_err_t crowpanel_advance_stc8_write(uint8_t value) {
+    return lvgl_i2c_write(CONFIG_LV_I2C_TOUCH_PORT,
+                          CROWPANEL_ADVANCE_CONTROLLER_ADDR,
+                          I2C_NO_REG, &value, 1);
+}
+
+static esp_err_t crowpanel_advance_stc8_prepare(void) {
+    uint8_t wake_cmd = CROWPANEL_ADVANCE_CONTROLLER_WAKE_CMD;
+    esp_err_t err = crowpanel_advance_stc8_write(wake_cmd);
+
+    for (unsigned attempt = 0; err != ESP_OK && attempt < 3; ++attempt) {
+        gpio_config_t wake_gpio = {
+            .pin_bit_mask = 1ULL << CROWPANEL_ADVANCE_CONTROLLER_WAKE_GPIO,
+            .mode = GPIO_MODE_OUTPUT,
+            .pull_up_en = GPIO_PULLUP_DISABLE,
+            .pull_down_en = GPIO_PULLDOWN_DISABLE,
+            .intr_type = GPIO_INTR_DISABLE,
+        };
+        esp_err_t gpio_err = gpio_config(&wake_gpio);
+        if (gpio_err != ESP_OK) {
+            ESP_LOGW("DisplayManager", "CrowPanel Advance controller wake GPIO failed: %s",
+                     esp_err_to_name(gpio_err));
+            return gpio_err;
+        }
+
+        gpio_set_level(CROWPANEL_ADVANCE_CONTROLLER_WAKE_GPIO, 0);
+        vTaskDelay(pdMS_TO_TICKS(120));
+        gpio_set_direction(CROWPANEL_ADVANCE_CONTROLLER_WAKE_GPIO, GPIO_MODE_INPUT);
+        gpio_set_pull_mode(CROWPANEL_ADVANCE_CONTROLLER_WAKE_GPIO, GPIO_FLOATING);
+        vTaskDelay(pdMS_TO_TICKS(100));
+        err = crowpanel_advance_stc8_write(wake_cmd);
+    }
+
+    if (err == ESP_OK) {
+        ESP_LOGI("DisplayManager", "CrowPanel Advance STC8 controller ready at 0x%02x",
+                 CROWPANEL_ADVANCE_CONTROLLER_ADDR);
+    } else {
+        ESP_LOGW("DisplayManager", "CrowPanel Advance STC8 controller unavailable after wake: %s",
+                 esp_err_to_name(err));
+    }
+    return err;
+}
+#endif
+
+#if defined(CONFIG_CROWPANEL_ADVANCE_24_LCD) || defined(CONFIG_CROWPANEL_ADVANCE_28_LCD)
+/* Both the V1.0 factory image and the V1.1/V1.2 examples perform this board
+ * reset before initializing the ST7789. GPIO2 remains high after the pulse. */
+static esp_err_t crowpanel_advance_small_factory_reset(void) {
+    const gpio_config_t reset_gpios = {
+        .pin_bit_mask = (1ULL << GPIO_NUM_1) | (1ULL << GPIO_NUM_2),
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE,
+    };
+    esp_err_t err = gpio_config(&reset_gpios);
+    if (err == ESP_OK) err = gpio_set_level(GPIO_NUM_1, 0);
+    if (err == ESP_OK) err = gpio_set_level(GPIO_NUM_2, 0);
+    if (err == ESP_OK) {
+        vTaskDelay(pdMS_TO_TICKS(20));
+        err = gpio_set_level(GPIO_NUM_2, 1);
+    }
+    if (err == ESP_OK) vTaskDelay(pdMS_TO_TICKS(100));
+    gpio_set_direction(GPIO_NUM_1, GPIO_MODE_INPUT);
+    gpio_set_pull_mode(GPIO_NUM_1, GPIO_FLOATING);
+
+    if (err == ESP_OK) {
+        ESP_LOGI("DisplayManager", "CrowPanel Advance 2.4/2.8 factory GPIO reset complete");
+    } else {
+        ESP_LOGE("DisplayManager", "CrowPanel Advance 2.4/2.8 factory GPIO reset failed: %s",
+                 esp_err_to_name(err));
+    }
+    return err;
+}
+#endif
+
+#ifdef CONFIG_CROWPANEL_ADVANCE_43_LCD
+#define CROWPANEL_ADVANCE43_TCA9534_ADDR        0x18
+#define CROWPANEL_ADVANCE43_TCA_OUTPUT_REG      0x01
+#define CROWPANEL_ADVANCE43_TCA_CONFIG_REG      0x03
+#define CROWPANEL_ADVANCE43_FACTORY_OUTPUTS     0x16 /* P1=H, P2=H, P3=L, P4=H */
+#define CROWPANEL_ADVANCE43_FACTORY_OUTPUT_MASK 0x1e /* P1..P4 */
+#define CROWPANEL_ADVANCE43_RESET_BIT           0x04 /* TCA9534 P2 */
+
+static esp_err_t crowpanel_advance43_tca9534_read(uint8_t reg, uint8_t *value) {
+    return lvgl_i2c_read(CONFIG_LV_I2C_TOUCH_PORT,
+                         CROWPANEL_ADVANCE43_TCA9534_ADDR,
+                         reg, value, 1);
+}
+
+static esp_err_t crowpanel_advance43_tca9534_write(uint8_t reg, uint8_t value) {
+    return lvgl_i2c_write(CONFIG_LV_I2C_TOUCH_PORT,
+                          CROWPANEL_ADVANCE43_TCA9534_ADDR,
+                          reg, &value, 1);
+}
+
+/* Match factory_code.ino: configure TCA9534 P1..P4 as outputs, assert its
+ * board-control rails, then pulse P2 while ESP GPIO1 holds the reset line low.
+ * P1 is left high by the factory and this board has no software dimmer. */
+static esp_err_t crowpanel_advance43_factory_power_sequence(void) {
+    uint8_t config = 0;
+    uint8_t outputs = 0;
+    esp_err_t err = crowpanel_advance43_tca9534_read(
+        CROWPANEL_ADVANCE43_TCA_CONFIG_REG, &config);
+    if (err != ESP_OK) goto failed;
+
+    config &= (uint8_t)~CROWPANEL_ADVANCE43_FACTORY_OUTPUT_MASK;
+    err = crowpanel_advance43_tca9534_write(
+        CROWPANEL_ADVANCE43_TCA_CONFIG_REG, config);
+    if (err != ESP_OK) goto failed;
+
+    err = crowpanel_advance43_tca9534_read(
+        CROWPANEL_ADVANCE43_TCA_OUTPUT_REG, &outputs);
+    if (err != ESP_OK) goto failed;
+    outputs = (uint8_t)((outputs & ~CROWPANEL_ADVANCE43_FACTORY_OUTPUT_MASK) |
+                        CROWPANEL_ADVANCE43_FACTORY_OUTPUTS);
+    err = crowpanel_advance43_tca9534_write(
+        CROWPANEL_ADVANCE43_TCA_OUTPUT_REG, outputs);
+    if (err != ESP_OK) goto failed;
+
+    gpio_config_t reset_gpio = {
+        .pin_bit_mask = 1ULL << GPIO_NUM_1,
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE,
+    };
+    err = gpio_config(&reset_gpio);
+    if (err != ESP_OK) goto failed;
+    err = gpio_set_level(GPIO_NUM_1, 0);
+    if (err != ESP_OK) goto release_gpio;
+
+    outputs &= (uint8_t)~CROWPANEL_ADVANCE43_RESET_BIT;
+    err = crowpanel_advance43_tca9534_write(
+        CROWPANEL_ADVANCE43_TCA_OUTPUT_REG, outputs);
+    if (err != ESP_OK) goto release_gpio;
+    vTaskDelay(pdMS_TO_TICKS(20));
+
+    outputs |= CROWPANEL_ADVANCE43_RESET_BIT;
+    err = crowpanel_advance43_tca9534_write(
+        CROWPANEL_ADVANCE43_TCA_OUTPUT_REG, outputs);
+    if (err != ESP_OK) goto release_gpio;
+    vTaskDelay(pdMS_TO_TICKS(100));
+
+release_gpio:
+    gpio_set_direction(GPIO_NUM_1, GPIO_MODE_INPUT);
+    gpio_set_pull_mode(GPIO_NUM_1, GPIO_FLOATING);
+    if (err == ESP_OK) {
+        ESP_LOGI("DisplayManager", "CrowPanel Advance 4.3 factory TCA9534 startup complete (0x%02x)",
+                 CROWPANEL_ADVANCE43_TCA9534_ADDR);
+        return ESP_OK;
+    }
+
+failed:
+    ESP_LOGE("DisplayManager", "CrowPanel Advance 4.3 TCA9534 startup failed at 0x%02x: %s",
+             CROWPANEL_ADVANCE43_TCA9534_ADDR, esp_err_to_name(err));
+    return err;
+}
+#endif
+
 #ifdef CONFIG_Waveshare_LCD
 #include "vendor/drivers/CH422G.h"
 #endif
@@ -1436,10 +1603,23 @@ void display_manager_add_status_bar(const char *CurrentMenuName) {
   lv_obj_remove_style_all(left_container);
 #ifdef CONFIG_CROWPANEL_1P28_ROTARY
   lv_obj_set_size(left_container, 72, 20);
+#elif GUI_LARGE_SCREEN
+  /* Wide panels have a true left title zone. A content-sized container
+   * centered in the bar put the title near x=200 on an 800px CrowPanel. */
+  lv_obj_set_size(left_container, lv_pct(50), GUI_STATUS_BAR_H);
+#elif defined(CONFIG_CROWPANEL_ADVANCE_SMALL_SPI_LCD)
+  /* The 320x240 Advance panels need the same left title zone as the wide
+   * panels; a content-sized container centers the title in the whole bar. */
+  lv_obj_set_size(left_container, lv_pct(50), GUI_STATUS_BAR_H);
 #else
   lv_obj_set_size(left_container, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
 #endif
   lv_obj_set_flex_flow(left_container, LV_FLEX_FLOW_ROW);
+#if (GUI_LARGE_SCREEN || defined(CONFIG_CROWPANEL_ADVANCE_SMALL_SPI_LCD)) && !defined(CONFIG_CROWPANEL_1P28_ROTARY)
+  lv_obj_set_flex_align(left_container, LV_FLEX_ALIGN_START,
+                        LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  lv_obj_align(left_container, LV_ALIGN_LEFT_MID, GUI_GRID, 0);
+#else
   lv_obj_set_flex_align(left_container, LV_FLEX_ALIGN_CENTER,
                         LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
   lv_obj_align(left_container, LV_ALIGN_CENTER,
@@ -1449,6 +1629,7 @@ void display_manager_add_status_bar(const char *CurrentMenuName) {
                0,
 #endif
                0);
+#endif
   mainlabel = lv_label_create(left_container);
   lv_label_set_text(mainlabel, label_text);
   lv_obj_set_style_text_color(mainlabel, lv_color_hex(theme_palette_get_text(theme)), 0);
@@ -1456,6 +1637,9 @@ void display_manager_add_status_bar(const char *CurrentMenuName) {
 #ifdef CONFIG_CROWPANEL_1P28_ROTARY
   lv_obj_set_width(mainlabel, 72);
   lv_obj_set_style_text_align(mainlabel, LV_TEXT_ALIGN_CENTER, 0);
+#elif GUI_LARGE_SCREEN || defined(CONFIG_CROWPANEL_ADVANCE_SMALL_SPI_LCD)
+  lv_obj_set_width(mainlabel, LV_PCT(100));
+  lv_obj_set_style_text_align(mainlabel, LV_TEXT_ALIGN_LEFT, 0);
 #else
   lv_obj_set_width(mainlabel, LV_HOR_RES / 2 - GUI_SAFEAREA_HOR);
 #endif
@@ -1801,7 +1985,7 @@ ESP_LOGI(TAG, "T-Deck trackball ISRs registered");
   }
 #endif
 #if defined(CONFIG_CROWPANEL_ADVANCE_24_LCD) || defined(CONFIG_CROWPANEL_ADVANCE_28_LCD)
-  /* The 2.4/2.8 GT911 shares the I2C bus with the RTC. Initialize it before
+  /* The 2.4/2.8 FT6336U shares the I2C bus with the RTC. Initialize it before
    * the LVGL driver so touch probing cannot race another early I2C client. */
   ESP_LOGI(TAG, "Pre-initializing CrowPanel 2.4/2.8 touch I2C bus (SDA=15, SCL=16)");
   esp_err_t crowpanel_small_i2c_ret = lvgl_i2c_init(CONFIG_LV_I2C_TOUCH_PORT);
@@ -1809,13 +1993,29 @@ ESP_LOGI(TAG, "T-Deck trackball ISRs registered");
     ESP_LOGE(TAG, "Failed to initialize CrowPanel 2.4/2.8 touch I2C bus: %s",
              esp_err_to_name(crowpanel_small_i2c_ret));
   }
+  crowpanel_advance_small_factory_reset();
 #endif
 #ifdef CONFIG_CROWPANEL_ADVANCE_RGB_LCD
-  esp_err_t crowpanel_7_i2c_ret = lvgl_i2c_init(CONFIG_LV_I2C_TOUCH_PORT);
-  if (crowpanel_7_i2c_ret != ESP_OK && crowpanel_7_i2c_ret != ESP_ERR_INVALID_STATE) {
-    ESP_LOGE(TAG, "Failed to initialize CrowPanel Advance 7 touch I2C bus: %s",
-             esp_err_to_name(crowpanel_7_i2c_ret));
+  esp_err_t crowpanel_i2c_ret = lvgl_i2c_init(CONFIG_LV_I2C_TOUCH_PORT);
+  if (crowpanel_i2c_ret != ESP_OK && crowpanel_i2c_ret != ESP_ERR_INVALID_STATE) {
+    ESP_LOGE(TAG, "Failed to initialize CrowPanel Advance touch I2C bus: %s",
+             esp_err_to_name(crowpanel_i2c_ret));
   }
+#ifdef CONFIG_CROWPANEL_ADVANCE_43_LCD
+  else {
+    crowpanel_advance43_factory_power_sequence();
+  }
+#else
+  else if (crowpanel_advance_stc8_prepare() == ESP_OK) {
+    /* Current factory sources send 0 after activation for maximum brightness. */
+    uint8_t backlight_on = 0;
+    esp_err_t backlight_err = crowpanel_advance_stc8_write(backlight_on);
+    if (backlight_err != ESP_OK) {
+      ESP_LOGW(TAG, "CrowPanel Advance initial backlight-on failed: %s",
+               esp_err_to_name(backlight_err));
+    }
+  }
+#endif
 #endif
   ESP_LOGI(TAG, "display_manager: initializing LVGL...");
   lv_init();
@@ -1875,7 +2075,7 @@ ESP_LOGI(TAG, "T-Deck trackball ISRs registered");
     return;
   }
 #elif defined(CONFIG_CROWPANEL_ADVANCE_RGB_LCD)
-  /* The Advance 7 uses the dedicated RGB driver below. Keep the legacy LVGL
+  /* Advance 4.3/5/7 use the dedicated RGB driver below. Keep the legacy LVGL
    * display helper out of this branch; only initialize GT911 touch here. */
   touch_driver_init();
 #else
@@ -3408,6 +3608,7 @@ static bool touch_move_events_enabled_for_view_name(const char *view_name) {
           strcmp(view_name, "NFC") == 0 ||
           strcmp(view_name, "Infrared View") == 0 ||
           strcmp(view_name, "SubGHz") == 0 ||
+          strcmp(view_name, "LoRa") == 0 ||
           strcmp(view_name, "Ethernet") == 0 ||
           strcmp(view_name, "AirspaceMonitorView") == 0 ||
           strcmp(view_name, "Audio Player") == 0 ||
@@ -3527,15 +3728,19 @@ static void display_manager_set_backlight_raw(uint8_t percentage) {
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "CrowPanel 5-inch backlight update failed: %s", esp_err_to_name(err));
     }
-#elif defined(CONFIG_CROWPANEL_ADVANCE_RGB_LCD)
-    /* V1.2+ CrowPanel Advance 7-inch boards route backlight control through
+#elif defined(CONFIG_CROWPANEL_ADVANCE_43_LCD)
+    /* Factory firmware leaves TCA9534 P1 high and exposes no dimming control. */
+    (void)percentage;
+#elif defined(CONFIG_CROWPANEL_ADVANCE_5_LCD) || defined(CONFIG_CROWPANEL_ADVANCE_7_LCD)
+    /* CrowPanel Advance 5/7-inch boards route backlight through
      * the onboard STC8H1K28 at 0x30. Its scale is inverted: 0=max and
-     * 245=off. The factory firmware uses the same raw one-byte command. */
-    uint8_t stc8_backlight = (uint8_t)(((100u - percentage) * 245u + 50u) / 100u);
-    esp_err_t err = lvgl_i2c_write(CONFIG_LV_I2C_TOUCH_PORT, 0x30, I2C_NO_REG,
-                                   &stc8_backlight, 1);
+     * 245=off. Older 5-inch v1.1 and 7-inch v1.2 boards use a different
+     * command protocol and require a revision-specific build. */
+    uint8_t stc8_backlight = (uint8_t)(((100u - percentage) *
+                                        CROWPANEL_ADVANCE_BACKLIGHT_MAX_RAW + 50u) / 100u);
+    esp_err_t err = crowpanel_advance_stc8_write(stc8_backlight);
     if (err != ESP_OK) {
-        ESP_LOGW(TAG, "CrowPanel Advance 7-inch STC8 backlight update failed: %s",
+        ESP_LOGW(TAG, "CrowPanel Advance STC8 backlight update failed: %s",
                  esp_err_to_name(err));
     }
 #elif defined(CONFIG_LV_DISP_BACKLIGHT_PWM)
@@ -4778,8 +4983,12 @@ void hardware_input_task(void *pvParameters) {
         event.data.touch_data.point.x = touch_data.point.x;
         event.data.touch_data.point.y = touch_data.point.y;
         event.data.touch_data.state = touch_data.state;
-        if (xQueueSend(input_queue, &event, pdMS_TO_TICKS(10)) != pdTRUE) {
-          ESP_LOGE(TAG, "Failed to send touch input to queue\n");
+        /* Never let the raw touch task block behind a busy LVGL frame.  A
+         * press is edge-triggered and a queued copy is only useful if it can
+         * be delivered immediately; blocking here was turning a short render
+         * stall into an apparent panel freeze. */
+        if (xQueueSend(input_queue, &event, 0) != pdTRUE) {
+          ESP_LOGW(TAG, "Touch press dropped: input queue full");
         }
       }
     } else if (touch_data.state == LV_INDEV_STATE_PR && touch_active && !skip_next_release) {
@@ -4829,8 +5038,8 @@ void hardware_input_task(void *pvParameters) {
         event.type = INPUT_TYPE_TOUCH;
         event.is_touch_move = false;
         event.data.touch_data = touch_data;
-        if (xQueueSend(input_queue, &event, pdMS_TO_TICKS(10)) != pdTRUE) {
-          ESP_LOGE(TAG, "Failed to send touch input to queue\n");
+        if (xQueueSend(input_queue, &event, 0) != pdTRUE) {
+          ESP_LOGW(TAG, "Touch release dropped: input queue full");
         }
       }
     }

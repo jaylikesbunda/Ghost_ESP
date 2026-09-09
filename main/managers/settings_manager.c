@@ -21,6 +21,11 @@ static bool settings_should_use_noop_dualcomm_pins(void) {
   // Standalone SD profile: the generic UART pins overlap SD MOSI and RGB R0.
   // Override saved defaults too, so existing installations need no NVS erase.
   return true;
+#elif defined(CONFIG_HAS_LORA) && defined(CONFIG_BUILD_CONFIG_TEMPLATE)
+  // Heltec V3 + LoRa: GhostLink UART RX (GPIO7) is the LoRa NSS pin in
+  // hardware. A single headless board has no GhostLink peer anyway, so park
+  // both pins rather than fight the radio (and break old saved 6/7 too).
+  return strcmp(CONFIG_BUILD_CONFIG_TEMPLATE, "Heltec WiFi Kit 32 V3") == 0;
 #elif defined(CONFIG_BUILD_CONFIG_TEMPLATE)
   return strcmp(CONFIG_BUILD_CONFIG_TEMPLATE, "Pancake") == 0 ||
          strcmp(CONFIG_BUILD_CONFIG_TEMPLATE, "MarauderV8") == 0;

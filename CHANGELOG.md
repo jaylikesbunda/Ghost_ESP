@@ -6,12 +6,21 @@ Untagged entries are by ([@jaylikesbunda](https://github.com/jaylikesbunda)). A 
 ## v2.2
 
 ### Added
+- Added Meshtastic-compatible LoRa support for SX1262-family radios including BLE app support with the official Meshtastic App
+- Added LoRa support to:
+  - Heltec V3
+  - Elecrow CrowPanel Advance 2.4-inch
+  - Elecrow CrowPanel Advance 2.8-inch
+  - Elecrow CrowPanel Advance 4.3-inch
 - Added USB SD card passthrough on ESP32-S3 boards with an SD card
 - Added custom channel hopping setting that applies to deauth, beacon spam, AP and station scans, airspace monitor, and packet visualizer/capture hopping.
 - Added a Country selector to Settings > Wi-Fi for display UI
 - Added support for setting IR TX/RX pins at runtime through the CLI or display UI settings menu
 - Added `dualwd` BLE + WiFi coexistence wardriving (exclusive to PSRAM devices), available from the CLI and GPS menu
 - Added Elecrow CrowPanel 1.28-inch rotary display support with USB Audio volume/mute control
+
+### Fixed
+- Fixed CrowPanel display startup configs
 - Fixed ESP32-C5 merged firmware failing to boot when flashed at `0x0` by placing the bootloader at the required `0x2000` offset - @yanxke (#395)
 
 ## Revival v2.1.2

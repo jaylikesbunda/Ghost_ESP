@@ -40,7 +40,7 @@ static SemaphoreHandle_t sem_gui_ready = NULL;
 #if LV_COLOR_DEPTH != 16 || LV_COLOR_16_SWAP
 #error "CrowPanel RGB framebuffers require native (not byte-swapped) RGB565"
 #endif
-#if defined(CONFIG_CROWPANEL_ADVANCE_5_LCD)
+#if defined(CONFIG_CROWPANEL_ADVANCE_5_LCD) || defined(CONFIG_CROWPANEL_ADVANCE_7_LCD)
 #define CROWPANEL_PCLK_HZ 16000000U
 #else
 #define CROWPANEL_PCLK_HZ 21000000U
@@ -375,8 +375,8 @@ static esp_err_t lcd_st7262_init_panel(void) {
   }
 
 #if defined(CONFIG_CROWPANEL_ADVANCE_RGB_LCD)
-  // Each board profile uses its factory clock: 5-inch is 16 MHz, while the
-  // 4.3-inch and 7-inch panels use 21 MHz.
+  // Current 5/7-inch factory sources use 16 MHz. The TCA9534-based 4.3-inch
+  // factory board uses 21 MHz.
   int ClockFrequency = CROWPANEL_PCLK_HZ / 1000000U;
 #elif defined(CONFIG_Crowtech_LCD)
   int ClockFrequency = 15;

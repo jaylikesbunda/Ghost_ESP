@@ -51,6 +51,7 @@
 #include "esp_heap_caps.h"
 #include "managers/usb_keyboard_manager.h"
 #include "managers/subghz_remote_manager.h"
+#include "managers/lora_manager.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -604,6 +605,20 @@ static void deferred_sd_init_task(void *arg) {
     // Short initial delay: the splash holds the screen during boot work, so we
     // only need enough time for splash_create to render the progress bar.
     vTaskDelay(pdMS_TO_TICKS(200));
+#if defined(CONFIG_HAS_LORA) && (defined(CONFIG_CROWPANEL_ADVANCE_RGB_LCD) || \
+                                defined(CONFIG_CROWPANEL_ADVANCE_SMALL_SPI_LCD))
+    // CrowPanel Advance wireless-module mode owns a SPI host/function-mux
+    // path. The 4.3 board shares GPIO4/5/6 with TF; the 2.4/2.8 boards keep
+    // the display on SPI2 and reserve SPI3 for the radio. In either case SD
+    // probing would claim or reconfigure the radio path, so leave SD off.
+    ESP_LOGI(TAG, "SD init skipped: CrowPanel wireless-module mode owns shared pins");
+#ifdef CONFIG_WITH_SCREEN
+    boot_status_set_progress(100.0f, "LoRa wireless module mode");
+    boot_status_signal_completion();
+#endif
+    vTaskDelete(NULL);
+    return;
+#endif
     ESP_LOGI(TAG, "Deferred SD Card init starting");
 
 #ifdef CONFIG_WITH_SCREEN
@@ -798,6 +813,9 @@ void app_main(void) {
 #endif
 #if !defined(CONFIG_IDF_TARGET_ESP32S2)
     // MEASURE_INIT_RAM("BLE Manager", ble_init());
+#endif
+#ifdef CONFIG_HAS_LORA
+    MEASURE_INIT_RAM("LoRa Manager", lora_manager_early_init_off_main());
 #endif
 #ifdef CONFIG_HAS_BADUSB
     MEASURE_INIT_RAM("BadUSB Manager", badusb_manager_init());

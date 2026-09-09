@@ -210,6 +210,16 @@ const CMD = {
     return { cmd: 'apcred', risky: false, stopFirst: false, cat: 'Misc', desc: 'Show AP credentials' };
   },
   apenable:        (on) => ({ cmd: `apenable ${on ? 'on' : 'off'}`, risky: true, stopFirst: false, cat: 'Misc', desc: 'Enable/disable AP' }),
+
+  // LoRa (SX1262-family mesh: stock framing + default-key crypto + BLE app link)
+  loraStatus:      () => ({ cmd: 'lora status',      risky: false, stopFirst: false, cat: 'LoRa', desc: 'LoRa status' }),
+  loraStart:       () => ({ cmd: 'lora start',       risky: true,  stopFirst: true,  cat: 'LoRa', desc: 'Start LoRa radio' }),
+  loraStop:        () => ({ cmd: 'lora stop',        risky: false, stopFirst: false, cat: 'LoRa', desc: 'Stop LoRa radio' }),
+  loraChat:        (text) => ({ cmd: text ? `lora chat ${text}` : 'lora chat', risky: false, stopFirst: false, cat: 'LoRa', desc: 'Send/list LoRa chat' }),
+  loraNodes:       () => ({ cmd: 'lora nodes',       risky: false, stopFirst: false, cat: 'LoRa', desc: 'List LoRa nodes' }),
+  loraDiag:        () => ({ cmd: 'lora diag',        risky: false, stopFirst: false, cat: 'LoRa', desc: 'LoRa diagnostics' }),
+  loraBle:         (on) => ({ cmd: on == null ? 'lora ble' : on ? 'lora ble on' : 'lora ble off', risky: false, stopFirst: false, cat: 'LoRa', desc: 'LoRa BLE app link' }),
+  loraApp:         () => ({ cmd: 'lora app',         risky: false, stopFirst: false, cat: 'LoRa', desc: 'Meshtastic app link status' }),
 };
 
 /** Registry of UI action definitions for WiFi page groups */
@@ -440,6 +450,24 @@ const SETTINGS_SCHEMA = [
   },
 ];
 
+/** LoRa action definitions (Terminal + future dedicated page). */
+const LORA_GROUPS = {
+  'Radio': [
+    { label: 'LoRa Status',  factory: () => CMD.loraStatus() },
+    { label: 'Start LoRa',   factory: () => CMD.loraStart() },
+    { label: 'Stop LoRa',    factory: () => CMD.loraStop() },
+    { label: 'Diagnostics',  factory: () => CMD.loraDiag() },
+  ],
+  'Mesh': [
+    { label: 'List Messages', factory: () => CMD.loraChat() },
+    { label: 'List Nodes',    factory: () => CMD.loraNodes() },
+  ],
+  'App': [
+    { label: 'App Link Status', factory: () => CMD.loraApp() },
+    { label: 'BLE On',          factory: () => CMD.loraBle(true) },
+    { label: 'BLE Off',         factory: () => CMD.loraBle(false) },
+  ],
+};
 /** Helper to build a command string with metadata */
 function buildCommand(factoryResult) {
   if (!factoryResult || typeof factoryResult !== 'object') return null;
@@ -458,7 +486,7 @@ function isRiskyCommand(commandString) {
     /^trackap\b/i, /^tracksta\b/i, /^trackgatt\b/i, /^selectflipper\b/i,
     /^spoofairtag\b/i, /^aerialscan\b/i, /^aerialspoof\b/i,
     /^ir dazzler\b/i, /^ir learn\b/i, /^badusb run\b/i,
-    /^reboot\b/i, /^apenable\b/i,
+    /^reboot\b/i, /^apenable\b/i, /^lora start\b/i,
   ];
   return riskyPatterns.some(p => p.test(commandString.trim()));
 }
@@ -474,6 +502,7 @@ function commandCategory(commandString) {
   if (c.startsWith('sd ')) return 'Files';
   if (c.startsWith('badusb')) return 'BadUSB';
   if (c.startsWith('badble')) return 'BadBLE';
+  if (c.startsWith('lora')) return 'LoRa';
   if (c.startsWith('comm')) return 'GhostLink';
   if (c.startsWith('settings')) return 'Settings';
   return 'System';

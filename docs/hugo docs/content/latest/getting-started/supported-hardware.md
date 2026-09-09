@@ -29,6 +29,7 @@ GhostESP runs on a variety of ESP32 boards with varying feature support. This co
     <label><input type="checkbox" data-compat-feature="SD Default"> SD default</label>
     <label><input type="checkbox" data-compat-feature="OTA"> OTA</label>
     <label><input type="checkbox" data-compat-feature="Native SD Apps"> Native SD Apps</label>
+    <label><input type="checkbox" data-compat-feature="LoRa"> LoRa</label>
   </fieldset>
   <div class="compat-controls__status" aria-live="polite">
     <span data-compat-count></span>
@@ -54,60 +55,61 @@ GhostESP runs on a variety of ESP32 boards with varying feature support. This co
         <th>SD Default</th>
         <th>OTA</th>
         <th>Native SD Apps</th>
+        <th>LoRa</th>
       </tr>
     </thead>
     <tbody>
-      <tr><th scope="row">CYD2USB</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✓</td><td>✓</td><td>Manual</td><td>✗</td></tr>
-      <tr><th scope="row">CYDMicroUSB</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✓</td><td>✓</td><td>Manual</td><td>✗</td></tr>
-      <tr><th scope="row">CYDDualUSB</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✓</td><td>✓</td><td>Manual</td><td>✗</td></tr>
-      <tr><th scope="row">CYD2432S028R</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✓</td><td>✓</td><td>Manual</td><td>✗</td></tr>
-      <tr><th scope="row">CYD 2.4″ variants</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✓</td><td>✓</td><td>Manual</td><td>✗</td></tr>
-      <tr><th scope="row">Waveshare 7″</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
-      <tr><th scope="row">Crowtech 7″</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>Manual</td><td>✗</td></tr>
-      <tr><th scope="row">CrowPanel 4.2″ E-paper</th><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✓</td><td>E-paper 400×300</td><td>✓</td><td>Manual</td><td>✗</td></tr>
-      <tr><th scope="row">CrowPanel 5.79″ E-paper</th><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✓</td><td>E-paper 792×272</td><td>✓</td><td>Manual</td><td>✗</td></tr>
-      <tr><th scope="row">CrowPanel Advance 2.4″</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
-      <tr><th scope="row">CrowPanel Advance 2.8″</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
-      <tr><th scope="row">CrowPanel Advance 3.5″</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
-      <tr><th scope="row">CrowPanel Advance 4.3″</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
-      <tr><th scope="row">CrowPanel Advance 5″</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
-      <tr><th scope="row">CrowPanel Advance 7″</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
-      <tr><th scope="row">CrowPanel Advanced P4 5″ RGB</th><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
-      <tr><th scope="row">CrowPanel Advanced P4 7/9/10.1″ (v1.2+)</th><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
-      <tr><th scope="row">CrowPanel Advanced P4 7/9/10.1″ (v1.1)</th><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
-      <tr><th scope="row">Sunton 7″</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✓</td><td>✗</td></tr>
-      <tr><th scope="row">Cardputer</th><td>✓</td><td>✗</td><td>✓</td><td>✓</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✗</td></tr>
-      <tr><th scope="row">Cardputer ADV</th><td>✓</td><td>✗</td><td>✓</td><td>✓</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✗</td></tr>
-      <tr><th scope="row">MarauderV4</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✓</td><td>✗</td></tr>
-      <tr><th scope="row">Marauder V8</th><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✓</td><td>✓</td><td>Manual</td><td>✓</td></tr>
-      <tr><th scope="row">Marauder Pancake</th><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✓</td><td>✓</td><td>Manual</td><td>✓</td></tr>
-      <tr><th scope="row">MarauderV6</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>Manual</td><td>✗</td></tr>
-      <tr><th scope="row">AwokMini</th><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>Manual</td><td>✗</td></tr>
-      <tr><th scope="row">Awok V5</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>Manual</td><td>✗</td></tr>
-      <tr><th scope="row">T-Dongle-S3</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✗</td></tr>
-      <tr><th scope="row">T-Dongle-C5</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
-      <tr><th scope="row">T-Display S3 Touch</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✓</td><td>✓</td><td>Manual</td><td>✗</td></tr>
-      <tr><th scope="row">S3TWatch</th><td>✓</td><td>✗</td><td>✓</td><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>✓</td><td>has 4MB vfs partition</td><td>✓</td><td>✗</td></tr>
-      <tr><th scope="row">TEmbed C1101</th><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
-      <tr><th scope="row">Banshee</th><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✗</td><td>✓</td><td>✓</td><td>Manual</td><td>✓</td></tr>
-      <tr><th scope="row">GhostBoard</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>Manual</td><td>✗</td></tr>
-      <tr><th scope="row">Poltergeist</th><td>✓</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td><td>✗</td><td>✗</td><td>Status Display</td><td>✓</td><td>Manual</td><td>✗</td></tr>
-      <tr><th scope="row">T-Deck</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>Manual</td><td>✓</td></tr>
-      <tr><th scope="row">JCMK DevBoardPro</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✓</td><td>✓</td><td>Manual</td><td>✗</td></tr>
-      <tr><th scope="row">RabbitLabs Minion</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>Manual</td><td>✗</td></tr>
-      <tr><th scope="row">Lolin S3 Pro</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>Manual</td><td>✓</td></tr>
-      <tr><th scope="row">XIAO ESP32-S3 Sense</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td></tr>
-      <tr><th scope="row">XIAO ESP32-C5</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✓</td><td>Manual</td><td>✓</td></tr>
-      <tr><th scope="row">Flipper JCMK GPS</th><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>Manual</td><td>✗</td></tr>
-      <tr><th scope="row">ESP32 (generic)</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>Manual</td><td>✗</td></tr>
-      <tr><th scope="row">ESP32-S2 (generic)</th><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>Manual</td><td>✗</td></tr>
-      <tr><th scope="row">ESP32-C3 (generic)</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>Manual</td><td>✗</td></tr>
-      <tr><th scope="row">ESP32-S3 (generic)</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>Manual</td><td>✗</td></tr>
-      <tr><th scope="row">ESP32-C5 (generic)</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>Manual</td><td>✗</td></tr>
-      <tr><th scope="row">ESP32-C6 (generic)</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>Manual</td><td>✗</td></tr>
-      <tr><th scope="row">Heltec V3</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>Status Display</td><td>✓</td><td>Manual</td><td>✗</td></tr>
-      <tr><th scope="row">M5Stack CoreS3-SE</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
-      <tr><th scope="row">M5Stack AtomS3R</th><td>✓</td><td>✗</td><td>✓</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✓</td><td>has 1MB vfs partition</td><td>Manual</td><td>✗</td></tr>
+      <tr><th scope="row">CYD2USB</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✓</td><td>✓</td><td>Manual</td><td>✗</td><td>✗</td></tr>
+      <tr><th scope="row">CYDMicroUSB</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✓</td><td>✓</td><td>Manual</td><td>✗</td><td>✗</td></tr>
+      <tr><th scope="row">CYDDualUSB</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✓</td><td>✓</td><td>Manual</td><td>✗</td><td>✗</td></tr>
+      <tr><th scope="row">CYD2432S028R</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✓</td><td>✓</td><td>Manual</td><td>✗</td><td>✗</td></tr>
+      <tr><th scope="row">CYD 2.4″ variants</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✓</td><td>✓</td><td>Manual</td><td>✗</td><td>✗</td></tr>
+      <tr><th scope="row">Waveshare 7″</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✗</td></tr>
+      <tr><th scope="row">Crowtech 7″</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>Manual</td><td>✗</td><td>✗</td></tr>
+      <tr><th scope="row">CrowPanel 4.2″ E-paper</th><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✓</td><td>E-paper 400×300</td><td>✓</td><td>Manual</td><td>✗</td><td>✗</td></tr>
+      <tr><th scope="row">CrowPanel 5.79″ E-paper</th><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✓</td><td>E-paper 792×272</td><td>✓</td><td>Manual</td><td>✗</td><td>✗</td></tr>
+      <tr><th scope="row">CrowPanel Advance 2.4″</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+      <tr><th scope="row">CrowPanel Advance 2.8″</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+      <tr><th scope="row">CrowPanel Advance 3.5″</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✗</td></tr>
+      <tr><th scope="row">CrowPanel Advance 4.3″</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+      <tr><th scope="row">CrowPanel Advance 5″</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✗</td></tr>
+      <tr><th scope="row">CrowPanel Advance 7″</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✗</td></tr>
+      <tr><th scope="row">CrowPanel Advanced P4 5″ RGB</th><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✗</td></tr>
+      <tr><th scope="row">CrowPanel Advanced P4 7/9/10.1″ (v1.2+)</th><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✗</td></tr>
+      <tr><th scope="row">CrowPanel Advanced P4 7/9/10.1″ (v1.1)</th><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✗</td></tr>
+      <tr><th scope="row">Sunton 7″</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td></tr>
+      <tr><th scope="row">Cardputer</th><td>✓</td><td>✗</td><td>✓</td><td>✓</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✗</td><td>✗</td></tr>
+      <tr><th scope="row">Cardputer ADV</th><td>✓</td><td>✗</td><td>✓</td><td>✓</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✗</td><td>✗</td></tr>
+      <tr><th scope="row">MarauderV4</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td></tr>
+      <tr><th scope="row">Marauder V8</th><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✓</td><td>✓</td><td>Manual</td><td>✓</td><td>✗</td></tr>
+      <tr><th scope="row">Marauder Pancake</th><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✓</td><td>✓</td><td>Manual</td><td>✓</td><td>✗</td></tr>
+      <tr><th scope="row">MarauderV6</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>Manual</td><td>✗</td><td>✗</td></tr>
+      <tr><th scope="row">AwokMini</th><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>Manual</td><td>✗</td><td>✗</td></tr>
+      <tr><th scope="row">Awok V5</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>Manual</td><td>✗</td><td>✗</td></tr>
+      <tr><th scope="row">T-Dongle-S3</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✗</td><td>✗</td></tr>
+      <tr><th scope="row">T-Dongle-C5</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✗</td></tr>
+      <tr><th scope="row">T-Display S3 Touch</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✓</td><td>✓</td><td>Manual</td><td>✗</td><td>✗</td></tr>
+      <tr><th scope="row">S3TWatch</th><td>✓</td><td>✗</td><td>✓</td><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>✓</td><td>has 4MB vfs partition</td><td>✓</td><td>✗</td><td>✗</td></tr>
+      <tr><th scope="row">TEmbed C1101</th><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✗</td></tr>
+      <tr><th scope="row">Banshee</th><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✗</td><td>✓</td><td>✓</td><td>Manual</td><td>✓</td><td>✗</td></tr>
+      <tr><th scope="row">GhostBoard</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>Manual</td><td>✗</td><td>✗</td></tr>
+      <tr><th scope="row">Poltergeist</th><td>✓</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td><td>✗</td><td>✗</td><td>Status Display</td><td>✓</td><td>Manual</td><td>✗</td><td>✗</td></tr>
+      <tr><th scope="row">T-Deck</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>Manual</td><td>✓</td><td>✗</td></tr>
+      <tr><th scope="row">JCMK DevBoardPro</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✓</td><td>✓</td><td>Manual</td><td>✗</td><td>✗</td></tr>
+      <tr><th scope="row">RabbitLabs Minion</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>Manual</td><td>✗</td><td>✗</td></tr>
+      <tr><th scope="row">Lolin S3 Pro</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>Manual</td><td>✓</td><td>✗</td></tr>
+      <tr><th scope="row">XIAO ESP32-S3 Sense</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td><td>✗</td></tr>
+      <tr><th scope="row">XIAO ESP32-C5</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✓</td><td>Manual</td><td>✓</td><td>✗</td></tr>
+      <tr><th scope="row">Flipper JCMK GPS</th><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>Manual</td><td>✗</td><td>✗</td></tr>
+      <tr><th scope="row">ESP32 (generic)</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>Manual</td><td>✗</td><td>✗</td></tr>
+      <tr><th scope="row">ESP32-S2 (generic)</th><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>Manual</td><td>✗</td><td>✗</td></tr>
+      <tr><th scope="row">ESP32-C3 (generic)</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>Manual</td><td>✗</td><td>✗</td></tr>
+      <tr><th scope="row">ESP32-S3 (generic)</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>Manual</td><td>✗</td><td>✗</td></tr>
+      <tr><th scope="row">ESP32-C5 (generic)</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>Manual</td><td>✗</td><td>✗</td></tr>
+      <tr><th scope="row">ESP32-C6 (generic)</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>Manual</td><td>✗</td><td>✗</td></tr>
+      <tr><th scope="row">Heltec V3</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td><td>Status Display</td><td>✓</td><td>Manual</td><td>✗</td><td>✓</td></tr>
+      <tr><th scope="row">M5Stack CoreS3-SE</th><td>✓</td><td>✗</td><td>✓</td><td>✗</td><td>✗</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✗</td></tr>
+      <tr><th scope="row">M5Stack AtomS3R</th><td>✓</td><td>✗</td><td>✓</td><td>✓</td><td>✗</td><td>✗</td><td>✓</td><td>✓</td><td>has 1MB vfs partition</td><td>Manual</td><td>✗</td><td>✗</td></tr>
     </tbody>
   </table>
 </div>

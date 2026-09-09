@@ -1043,9 +1043,14 @@ esp_err_t ap_manager_init(void) {
 // Deinitialize and stop the servers
 void ap_manager_deinit(void) {
     ESP_LOGI(TAG, "Deinitializing AP Manager");
-    
+
     stop_http_server();
     reset_server_config();
+
+    // Quiesce mDNS BEFORE the WiFi driver goes down: a pending responder
+    // announce/probe fired after esp_wifi_stop() crashes in the WiFi ROM
+    // (LoadProhibited in ieee80211_search_node on tcpip_thread).
+    teardown_mdns();
 
     {
         esp_err_t err_reg = esp_event_handler_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler);
@@ -1073,9 +1078,7 @@ void ap_manager_deinit(void) {
         esp_netif_destroy(netif);
         netif = NULL;
     }
-    
-    teardown_mdns();
-    
+
     ESP_LOGI(TAG, "AP Manager deinitialized successfully");
 }
 

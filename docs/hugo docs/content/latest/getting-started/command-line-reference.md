@@ -210,6 +210,24 @@ Available on boards with `CONFIG_HAS_NRF24` or `CONFIG_HAS_NRF24_REMOTE`.
 - **`nrf24 status`** — Show current frequency, channel, detected signals, and jamming status.
 - **`nrf24 stop`** — Stop NRF24 analysis.
 
+## LoRa
+
+Available on boards with `CONFIG_HAS_LORA` (SX1262-family radio).
+
+- **`lora setup`** — Print the first-run questionnaire (region required before TX).
+- **`lora set region <name>`** — Persist the LoRa band plan (e.g., `anz`, `us915`, `eu868`). See [LoRa]({{< relref "../lora/_index.md" >}}) for the full name list and frequencies.
+- **`lora set tx <dbm>`** / **`lora set sf <5-12>`** / **`lora set bw <125|250|500>`** — Radio parameters (presets recommended; `set` takes effect on next `lora start`).
+- **`lora set companion <ble|wifi>`** — Whether the BLE PhoneAPI app link rides alongside LoRa (no-PSRAM: WiFi XOR BLE).
+- **`lora start`** / **`lora stop`** — Start or stop the radio and BLE link.
+- **`lora chat [text]`** — Without text, lists recent messages; with text, broadcasts `TEXT_MESSAGE_APP` on the mesh.
+- **`lora nodes`** — Show discovered peers with RSSI/SNR and short names.
+- **`lora ble [on|off|status]`** — Manage BLE advertising for the official Meshtastic app.
+- **`lora app`** / **`lora diag`** — Link stats and `tx_ok/fail/relay rx_ok dups duty_drops`.
+- **`lora cad`** — Run five channel-activity trials with RSSI.
+- **`lora reg <hex-address> [count]`** — Read up to eight consecutive SX1262 registers; `lora reg 0740 2` verifies the SX1262-encoded Meshtastic sync word `24 B4`.
+
+On-device: **Menu → LoRa** mirrors these with selectable rows. See the [LoRa guides]({{< relref "../lora/_index.md" >}}) for wiring, BLE pairing, and mesh framing details.
+
 ## SubGHz
 
 Available on boards with `CONFIG_HAS_SUBGHZ` (CC1101 hardware).
