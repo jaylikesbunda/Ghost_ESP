@@ -3619,6 +3619,7 @@ static bool touch_move_events_enabled_for_view_name(const char *view_name) {
            strcmp(view_name, "GhostScript Runner") == 0 ||
            strcmp(view_name, "SD App") == 0 ||
            strcmp(view_name, "BadUSB") == 0 ||
+           strcmp(view_name, "BadBLE") == 0 ||
           strcmp(view_name, "WardrivingView") == 0 ||
           strcmp(view_name, "Trackpad") == 0 ||
           strcmp(view_name, "Cloud Store") == 0 ||

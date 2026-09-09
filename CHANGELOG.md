@@ -20,6 +20,7 @@ Untagged entries are by ([@jaylikesbunda](https://github.com/jaylikesbunda)). A 
 - Added Elecrow CrowPanel 1.28-inch rotary display support with USB Audio volume/mute control
 
 ### Fixed
+- Fixed BadBLE touch-drag scrolling
 - Fixed CrowPanel display startup configs
 - Fixed ESP32-C5 merged firmware failing to boot when flashed at `0x0` by placing the bootloader at the required `0x2000` offset - @yanxke (#395)
 
