@@ -14,6 +14,7 @@ extern const lv_img_dsc_t p4_folder;
 extern const lv_img_dsc_t p4_GESPAppGallery;
 extern const lv_img_dsc_t p4_infrared;
 extern const lv_img_dsc_t p4_lock;
+extern const lv_img_dsc_t p4_lora;
 extern const lv_img_dsc_t p4_Map;
 extern const lv_img_dsc_t p4_nfc;
 extern const lv_img_dsc_t p4_nrf24;

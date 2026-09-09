@@ -67,6 +67,7 @@ LV_IMG_DECLARE(dualcomm);
 LV_IMG_DECLARE(lan_50dp_FFFFFF_FILL0_wght400_GRAD0_opsz48);
 LV_IMG_DECLARE(nrf24);
 LV_IMG_DECLARE(subghz);
+LV_IMG_DECLARE(lora);
 LV_IMG_DECLARE(lock);
 LV_IMG_DECLARE(rave);
 LV_IMG_DECLARE(speaker_50dp_FFFFFF_FILL0_wght400_GRAD0_opsz48);
@@ -105,7 +106,7 @@ static const menu_catalog_item_t builtin_items[] = {
     ITEM("subghz", "SubGHz", "subghz", subghz, subghz_view, 0, MENU_PLACE_MAIN),
 #endif
 #if defined(CONFIG_HAS_LORA) && defined(CONFIG_WITH_SCREEN)
-    ITEM("lora", "LoRa", "subghz", subghz, lora_view, 0, MENU_PLACE_MAIN),
+    ITEM("lora", "LoRa", "lora", lora, lora_view, 0, MENU_PLACE_MAIN),
 #endif
 #if defined(CONFIG_HAS_BADUSB) || defined(CONFIG_HAS_BADUSB_REMOTE)
     ITEM("badusb", "BadUSB", "usb", usb, badusb_view, 0, MENU_PLACE_MAIN),

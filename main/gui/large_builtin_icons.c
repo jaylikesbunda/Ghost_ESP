@@ -28,6 +28,7 @@ extern const lv_img_dsc_t folder P4_ICON_WEAK;
 extern const lv_img_dsc_t GESPAppGallery P4_ICON_WEAK;
 extern const lv_img_dsc_t infrared P4_ICON_WEAK;
 extern const lv_img_dsc_t lock P4_ICON_WEAK;
+extern const lv_img_dsc_t lora P4_ICON_WEAK;
 extern const lv_img_dsc_t Map P4_ICON_WEAK;
 extern const lv_img_dsc_t nfc_icon P4_ICON_WEAK;
 extern const lv_img_dsc_t nrf24 P4_ICON_WEAK;
@@ -64,6 +65,7 @@ static const lv_img_dsc_t *p4_native_icon(const lv_img_dsc_t *source) {
     if (source == &GESPAppGallery) return &p4_GESPAppGallery;
     if (source == &infrared) return &p4_infrared;
     if (source == &lock) return &p4_lock;
+    if (source == &lora) return &p4_lora;
     if (source == &Map) return &p4_Map;
     if (source == &nfc_icon) return &p4_nfc;
     if (source == &nrf24) return &p4_nrf24;

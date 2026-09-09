@@ -90,7 +90,7 @@ my_pack/
 | `lock` | Main menu |
 | `dualcomm` | Main menu |
 | `lan_50dp_FFFFFF_FILL0_wght400_GRAD0_opsz48` | Main menu |
-| `infrared`, `nfc_icon`, `nrf24`, `subghz`, `usb` | Optional hardware menus |
+| `infrared`, `nfc_icon`, `nrf24`, `subghz`, `lora`, `usb` | Optional hardware menus |
 | `compass`, `enviii`, `accelerometer_icon` | Optional sensor menus |
 | `ghost` | App gallery |
 | `terminal_icon` | App gallery |
