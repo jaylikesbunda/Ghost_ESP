@@ -29,6 +29,7 @@
           "command",
           "tasks",
           "wifi",
+          "espnow",
           "ble",
           "nfc",
           "ir",
