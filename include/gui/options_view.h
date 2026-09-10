@@ -30,6 +30,11 @@ void options_view_add_items(options_view_t *ov, const char **labels, lv_event_cb
 // Add a standard "< Back" row at the end with the provided callback (optional user_data).
 lv_obj_t *options_view_add_back_row(options_view_t *ov, lv_event_cb_t on_click, void *user_data);
 
+// Override the row height for this view (default follows the shared menu policy).
+// Call before adding items. Existing rows and their label font are updated too,
+// so a row re-heighted by the caller afterwards still wins.
+void options_view_set_item_height(options_view_t *ov, int height);
+
 // Selection helpers (wrap-around). Index is 0-based across added items.
 void options_view_set_selected(options_view_t *ov, int index);
 void options_view_move_selection(options_view_t *ov, int delta);

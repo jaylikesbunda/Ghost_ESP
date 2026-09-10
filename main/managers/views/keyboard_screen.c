@@ -28,20 +28,37 @@
 
 #define KEYBOARD_COLUMNS 10
 
-static inline int keyboard_layout_padding(void) {
-#ifdef CONFIG_CROWPANEL_ADVANCED_P4
-    return 10;
-#else
-    return 5;
+/* iOS-style matrix layout: every row of every page sums to KB_UNITS_PER_ROW so
+ * lv_btnmatrix's per-row normalization produces one uniform key size. Units are
+ * half-keys (a normal key is 2). */
+#define KB_UNITS_PER_ROW 20
+#define KB_IOS_ROWS      4
+#define KB_IOS_MAX_BTNS  40
+#define KB_KEY_TEXT_LEN  8
+
+static inline int kb_clamp_int(int v, int lo, int hi) {
+    return v < lo ? lo : (v > hi ? hi : v);
+}
+
+static inline int kb_pad_h(int screen_w) {
+    int pad = kb_clamp_int(screen_w / 40, 2, GUI_SAFEAREA_HOR);
+#if defined(CONFIG_CROWPANEL_1P28_ROTARY)
+    /* Round aperture: keep the outer keys clear of the bezel. */
+    pad += pad / 8 + 2;
 #endif
+    return pad;
+}
+
+static inline int kb_field_h(int screen_h) {
+    return kb_clamp_int(screen_h / 8, GUI_CONTROL_H / 2, GUI_CONTROL_H);
+}
+
+static inline int keyboard_layout_padding(void) {
+    return kb_pad_h(LV_HOR_RES);
 }
 
 static inline int keyboard_display_height(void) {
-#ifdef CONFIG_CROWPANEL_ADVANCED_P4
-    return 64;
-#else
-    return 40;
-#endif
+    return kb_field_h(LV_VER_RES);
 }
 
 static const char *TAG = "keyboard_screen";
@@ -78,6 +95,10 @@ static inline lv_coord_t kb_radius(void) {
 
 static lv_obj_t *root = NULL;
 static lv_obj_t *input_label = NULL;
+/* Field height bounds resolved at create; the field grows between them as the
+ * text wraps. Equal values mean the display has no spare room to grow into. */
+static int kb_field_base_h = 0;
+static int kb_field_max_h = 0;
 static char input_buffer[128] = {0};
 static int input_len = 0;
 static char pending_initial_text[128] = {0};
@@ -89,6 +110,9 @@ static KeyboardImmediateCallback immediate_callback = NULL;
 static bool is_caps = true;
 static bool is_symbols_mode = false;
 static bool is_capslock = false;
+/* Second symbols page (#+=). Only the btnmatrix path sets this; the legacy
+ * per-key and encoder paths only ever use page one. */
+static bool kb_sym2 = false;
 #if defined(CONFIG_USE_ENCODER) && !defined(CONFIG_USE_JOYSTICK)
 static lv_obj_t *encoder_cont = NULL;
 static lv_obj_t *encoder_selector = NULL;
@@ -145,6 +169,193 @@ static int pressed_btn_id = -1;
 static void key_matrix_event_cb(lv_event_t *e);
 static void build_key_matrix(void);
 
+/* One entry per key: label, width in half-keys, and whether it is a layout
+ * spacer. NULL label terminates a row. */
+typedef struct {
+    const char *label;
+    uint8_t units;
+    uint8_t spacer;
+} kb_key_desc_t;
+
+/* Defined below; the geometry helpers need them here. */
+static const kb_key_desc_t * const *kb_active_page(void);
+static int kb_row_btn_count(int row);
+static const char *(*get_current_keys(void))[10];
+static const int *get_current_row_lengths(void);
+
+/* Legacy tables: still consumed by the encoder strip and the per-key fallback
+ * path. The btnmatrix path uses the iOS-style descriptor tables below. They sit
+ * here because the geometry helpers reference num_rows. */
+static const int row_lengths[] = {10, 9, 8, 5, 3};
+static const int symbols_row_lengths[] = {10, 10, 10, 8, 3};
+static const int max_row_lengths[] = {10, 10, 10, 8, 3};
+static const int num_rows = 5;
+
+/* ---------------------------------------------------------------------------
+ * Resolved matrix geometry
+ *
+ * Single source of truth for the key sizes, gutters and key font, derived from
+ * the display size so one layout scales from 128px panels to 1024x600.
+ * ------------------------------------------------------------------------ */
+typedef struct {
+    int pad_h;
+    int field_h;
+    int field_max_h;   /* upper bound for content-driven growth */
+    int matrix_w;
+    int matrix_h;
+    int matrix_y;
+    int key_h;
+    int gap;
+    const lv_font_t *font;
+} kb_metrics_t;
+
+static void kb_compute_metrics(kb_metrics_t *m, int sw, int sh, int status_bar_h) {
+    m->pad_h = kb_pad_h(sw);
+    m->matrix_w = sw - 2 * m->pad_h;
+    if (m->matrix_w < KB_UNITS_PER_ROW) m->matrix_w = KB_UNITS_PER_ROW;
+
+    int key_w = (m->matrix_w * 2) / KB_UNITS_PER_ROW;
+    if (key_w < 8) key_w = 8;
+    int gap = kb_clamp_int(key_w / 6, 1, GUI_GRID);
+
+    int top = status_bar_h + GUI_SAFEAREA_VER;
+    int bottom = sh - GUI_SAFEAREA_VER;
+    int avail_total = bottom - top;
+    if (avail_total < GUI_CONTROL_H) avail_total = GUI_CONTROL_H;
+
+    int field_min = GUI_CONTROL_H / 2;
+    int field_min_prop = sh / 12;
+    if (field_min_prop > field_min) field_min = field_min_prop;
+    int avail_for_keys = avail_total - field_min;
+    if (avail_for_keys < KB_IOS_ROWS) avail_for_keys = KB_IOS_ROWS;
+
+    /* iOS keys are ~31.5 x 42 pt, so drive the height from the key width rather
+     * than from leftover vertical space. Rows may grow to 1.6x that ratio on
+     * tall portrait panels, but never further: the field below takes the rest,
+     * which keeps the view full-bleed instead of leaving a dead band between the
+     * text and the keys. */
+    int key_h = (key_w * 4) / 3;
+    int key_h_max = (key_w * 8) / 5;
+    int need = KB_IOS_ROWS * key_h + (KB_IOS_ROWS - 1) * gap;
+    if (need > avail_for_keys) {
+        /* Tight screen: compress the rows, down to a floor. */
+        key_h = (avail_for_keys - (KB_IOS_ROWS - 1) * gap) / KB_IOS_ROWS;
+        if (key_h < 14) key_h = 14;
+        need = KB_IOS_ROWS * key_h + (KB_IOS_ROWS - 1) * gap;
+        if (need > avail_total - field_min) need = avail_total - field_min;
+    } else {
+        int grow = (avail_for_keys - (KB_IOS_ROWS - 1) * gap) / KB_IOS_ROWS;
+        if (grow > key_h_max) grow = key_h_max;
+        if (grow > key_h) key_h = grow;
+        need = KB_IOS_ROWS * key_h + (KB_IOS_ROWS - 1) * gap;
+    }
+
+    m->key_h = key_h;
+    m->gap = gap;
+    m->matrix_h = need;
+    /* Bottom-anchored, like the iOS keyboard. */
+    m->matrix_y = bottom - need;
+
+    /* The field starts at one line and grows with the text into whatever space
+     * is left above the keys, so spare height on a large display goes to the
+     * text area instead of sitting empty between the two. */
+    m->field_h = field_min;
+    int field_room = m->matrix_y - GUI_GRID - top;
+    if (field_room < field_min) field_room = field_min;
+    int field_cap = avail_total * 3 / 5;
+    if (field_cap > field_room) field_cap = field_room;
+    m->field_max_h = field_cap;
+    m->font = gui_font_for_height((lv_coord_t)key_h);
+}
+
+/* Key identifier at a cursor position, or NULL. Matrix builds report their
+ * descriptor labels (SHIFT/DEL/Exit/Done/123/ABC/#+=/" " and single chars). */
+static const char *kb_key_label_at(int row, int col) {
+    if (!key_matrix) {
+        const char *(*ck)[10] = get_current_keys();
+        const int *lens = get_current_row_lengths();
+        if (row < 0 || row >= num_rows || col < 0 || col >= lens[row]) return NULL;
+        return ck[row][col];
+    }
+    if (row < 0 || row >= KB_IOS_ROWS || col < 0) return NULL;
+    const kb_key_desc_t * const *page = kb_active_page();
+    const kb_key_desc_t *k = page[row];
+    int sel = 0;
+    while (k && k->label) {
+        if (!k->spacer) {
+            if (sel == col) return k->label;
+            sel++;
+        }
+        k++;
+    }
+    return NULL;
+}
+
+/* Map a screen point to (row, selectable column) by replicating lv_btnmatrix's
+ * own layout arithmetic, reading the live widget style, so hit-testing can
+ * never drift from what is drawn. Spacers resolve to no column. */
+static bool kb_matrix_hit_test(int tx, int ty, int *out_row, int *out_col) {
+    if (!key_matrix) return false;
+    int km_x = lv_obj_get_x(key_matrix);
+    int km_y = lv_obj_get_y(key_matrix);
+    int w = lv_obj_get_width(key_matrix);
+    int h = lv_obj_get_height(key_matrix);
+    if (tx < km_x || tx >= km_x + w || ty < km_y || ty >= km_y + h) return false;
+
+    lv_coord_t ptop = lv_obj_get_style_pad_top(key_matrix, LV_PART_MAIN);
+    lv_coord_t pleft = lv_obj_get_style_pad_left(key_matrix, LV_PART_MAIN);
+    lv_coord_t prow = lv_obj_get_style_pad_row(key_matrix, LV_PART_MAIN);
+    lv_coord_t pcol = lv_obj_get_style_pad_column(key_matrix, LV_PART_MAIN);
+    lv_coord_t content_w = lv_obj_get_content_width(key_matrix);
+    lv_coord_t content_h = lv_obj_get_content_height(key_matrix);
+
+    int rows = KB_IOS_ROWS;
+    lv_coord_t max_h_no_gap = content_h - prow * (rows - 1);
+    if (max_h_no_gap < 1) max_h_no_gap = 1;
+
+    int yy = ty - km_y;
+    int row = -1;
+    for (int r = 0; r < rows; r++) {
+        int y1 = ptop + (max_h_no_gap * r) / rows + r * prow;
+        int y2 = ptop + (max_h_no_gap * (r + 1)) / rows + r * prow;
+        if (yy >= y1 && yy < y2) { row = r; break; }
+    }
+    if (row < 0) return false;
+
+    const kb_key_desc_t * const *page = kb_active_page();
+    const kb_key_desc_t *k = page[row];
+    int btn_cnt = kb_row_btn_count(row);
+    if (btn_cnt <= 0) return false;
+
+    int unit_cnt = 0;
+    for (const kb_key_desc_t *q = k; q && q->label; q++) unit_cnt += (q->units ? q->units : 1);
+    if (unit_cnt <= 0) return false;
+
+    lv_coord_t max_w_no_gap = content_w - pcol * (btn_cnt - 1);
+    if (max_w_no_gap < 1) max_w_no_gap = 1;
+
+    int xx = tx - km_x;
+    int unit_pos = 0;
+    int sel = 0;
+    int col = -1;
+    for (int i = 0; k && k->label; i++, k++) {
+        int u = k->units ? k->units : 1;
+        int x1 = (max_w_no_gap * unit_pos) / unit_cnt + i * pcol + pleft;
+        int x2 = (max_w_no_gap * (unit_pos + u)) / unit_cnt + i * pcol + pleft;
+        if (xx >= x1 && xx < x2) {
+            col = k->spacer ? -1 : sel;
+            break;
+        }
+        if (!k->spacer) sel++;
+        unit_pos += u;
+    }
+    if (col < 0) return false;
+
+    *out_row = row;
+    *out_col = col;
+    return true;
+}
+
 // cache for key button objects to avoid invalid parent during label create
 static lv_obj_t *key_btns[5][KEYBOARD_COLUMNS];
 
@@ -188,10 +399,141 @@ static const char *symbols[][10] = {
     {"ABC", "Exit", "Done"}
 };
 
-static const int row_lengths[] = {10, 9, 8, 5, 3};
-static const int symbols_row_lengths[] = {10, 10, 10, 8, 3};
-static const int max_row_lengths[] = {10, 10, 10, 8, 3};
-static const int num_rows = 5;
+/* ---------------------------------------------------------------------------
+ * iOS-style matrix layout
+ *
+ * Every row of every page sums to KB_UNITS_PER_ROW (20), so lv_btnmatrix's
+ * per-row normalization gives all keys one uniform width. Rows that should be
+ * inset (the staggered second row, the #+= punctuation row) pad themselves with
+ * HIDDEN spacer entries: lv_btnmatrix counts hidden buttons when laying out and
+ * only skips them when drawing and hit-testing, so they reserve exactly the
+ * space we want while staying untappable.
+ * ------------------------------------------------------------------------ */
+/* Non-empty so lv_btnmatrix's map parser does not treat it as a row terminator. */
+#define KB_SPACER_LABEL " "
+
+/* Alpha: 10 / 9 (staggered) / 9 / 4 keys, matching the iOS letter layout. */
+static const kb_key_desc_t kb_alpha_row1[] = {
+    {"Q",2,0},{"W",2,0},{"E",2,0},{"R",2,0},{"T",2,0},
+    {"Y",2,0},{"U",2,0},{"I",2,0},{"O",2,0},{"P",2,0},{NULL,0,0}
+};
+static const kb_key_desc_t kb_alpha_row2[] = {
+    {KB_SPACER_LABEL,1,1},
+    {"A",2,0},{"S",2,0},{"D",2,0},{"F",2,0},{"G",2,0},
+    {"H",2,0},{"J",2,0},{"K",2,0},{"L",2,0},
+    {KB_SPACER_LABEL,1,1},{NULL,0,0}
+};
+static const kb_key_desc_t kb_alpha_row3[] = {
+    {"SHIFT",3,0},
+    {"Z",2,0},{"X",2,0},{"C",2,0},{"V",2,0},{"B",2,0},{"N",2,0},{"M",2,0},
+    {"DEL",3,0},{NULL,0,0}
+};
+static const kb_key_desc_t kb_alpha_row4[] = {
+    {"123",3,0},{"Exit",3,0},{" ",10,0},{"Done",4,0},{NULL,0,0}
+};
+
+/* Numbers page (123). */
+static const kb_key_desc_t kb_num_row1[] = {
+    {"1",2,0},{"2",2,0},{"3",2,0},{"4",2,0},{"5",2,0},
+    {"6",2,0},{"7",2,0},{"8",2,0},{"9",2,0},{"0",2,0},{NULL,0,0}
+};
+static const kb_key_desc_t kb_num_row2[] = {
+    {"-",2,0},{"/",2,0},{":",2,0},{";",2,0},{"(",2,0},
+    {")",2,0},{"$",2,0},{"&",2,0},{"@",2,0},{"\"",2,0},{NULL,0,0}
+};
+static const kb_key_desc_t kb_num_row3[] = {
+    {KB_SPACER_LABEL,2,1},{"#+=",3,0},
+    {".",2,0},{",",2,0},{"?",2,0},{"!",2,0},{"'",2,0},
+    {"DEL",3,0},{KB_SPACER_LABEL,2,1},{NULL,0,0}
+};
+static const kb_key_desc_t kb_num_row4[] = {
+    {"ABC",3,0},{"Exit",3,0},{" ",10,0},{"Done",4,0},{NULL,0,0}
+};
+
+/* Second symbols page (#+=). ASCII only: the Montserrat builds carry no
+ * currency or other extended glyphs. */
+static const kb_key_desc_t kb_sym_row1[] = {
+    {"[",2,0},{"]",2,0},{"{",2,0},{"}",2,0},{"#",2,0},
+    {"%",2,0},{"^",2,0},{"*",2,0},{"+",2,0},{"=",2,0},{NULL,0,0}
+};
+static const kb_key_desc_t kb_sym_row2[] = {
+    {KB_SPACER_LABEL,3,1},
+    {"<",2,0},{">",2,0},{"_",2,0},{"\\",2,0},{"|",2,0},{"~",2,0},{"`",2,0},
+    {KB_SPACER_LABEL,3,1},{NULL,0,0}
+};
+static const kb_key_desc_t kb_sym_row3[] = {
+    {KB_SPACER_LABEL,2,1},{"123",3,0},
+    {".",2,0},{",",2,0},{"?",2,0},{"!",2,0},{"'",2,0},
+    {"DEL",3,0},{KB_SPACER_LABEL,2,1},{NULL,0,0}
+};
+static const kb_key_desc_t kb_sym_row4[] = {
+    {"ABC",3,0},{"Exit",3,0},{" ",10,0},{"Done",4,0},{NULL,0,0}
+};
+
+static const kb_key_desc_t * const kb_alpha_page[KB_IOS_ROWS] = {
+    kb_alpha_row1, kb_alpha_row2, kb_alpha_row3, kb_alpha_row4
+};
+static const kb_key_desc_t * const kb_num_page[KB_IOS_ROWS] = {
+    kb_num_row1, kb_num_row2, kb_num_row3, kb_num_row4
+};
+static const kb_key_desc_t * const kb_sym_page[KB_IOS_ROWS] = {
+    kb_sym_row1, kb_sym_row2, kb_sym_row3, kb_sym_row4
+};
+
+static const kb_key_desc_t * const *kb_active_page(void) {
+    if (!is_symbols_mode) return kb_alpha_page;
+    return kb_sym2 ? kb_sym_page : kb_num_page;
+}
+
+static int kb_active_rows(void) {
+    return KB_IOS_ROWS;
+}
+
+/* Buttons in a row, spacers included (this is the btnmatrix button count). */
+static int kb_row_btn_count(int row) {
+    if (row < 0 || row >= KB_IOS_ROWS) return 0;
+    const kb_key_desc_t * const *page = kb_active_page();
+    const kb_key_desc_t *k = page[row];
+    int n = 0;
+    while (k && k->label) { n++; k++; }
+    return n;
+}
+
+/* Selectable keys in a row (cursor space; spacers excluded). */
+static int kb_row_key_count(int row) {
+    if (row < 0 || row >= KB_IOS_ROWS) return 0;
+    const kb_key_desc_t * const *page = kb_active_page();
+    const kb_key_desc_t *k = page[row];
+    int n = 0;
+    while (k && k->label) { if (!k->spacer) n++; k++; }
+    return n;
+}
+
+/* Cursor column (selectable index) -> btnmatrix button id. */
+static int kb_cursor_to_btn_id(int row, int col) {
+    if (row < 0 || row >= KB_IOS_ROWS || col < 0) return -1;
+    const kb_key_desc_t * const *page = kb_active_page();
+    int id = 0;
+    for (int r = 0; r < row; r++) id += kb_row_btn_count(r);
+    const kb_key_desc_t *k = page[row];
+    int sel = 0;
+    while (k && k->label) {
+        if (!k->spacer) {
+            if (sel == col) return id;
+            sel++;
+        }
+        id++;
+        k++;
+    }
+    return -1;
+}
+
+/* Selectable key count per row, for cursor bounds in the matrix path. */
+static const int *kb_matrix_row_lens(void) {
+    static int lens[KB_IOS_ROWS];
+    for (int r = 0; r < KB_IOS_ROWS; r++) lens[r] = kb_row_key_count(r);
+    return lens;
+}
 
 static void submit_text();
 static void add_char_to_buffer(char c);
@@ -237,6 +579,12 @@ static bool is_space_key(const char *key) {
 }
 static bool is_symbol_key(const char *key) {
     return strcmp(key, "SYM") == 0;
+}
+static bool is_exit_key(const char *key) {
+    return strcmp(key, "Exit") == 0;
+}
+static bool is_done_key(const char *key) {
+    return strcmp(key, "Done") == 0;
 }
 static bool is_alpha_key(const char *key) {
     return strlen(key) == 1 && isalpha((unsigned char)key[0]);
@@ -435,18 +783,29 @@ static void remove_char_from_buffer() {
 }
 
 static void update_input_label() {
-    if (input_label) {
-        if (input_len == 0) {
-            lv_label_set_text(input_label, placeholder);
-        } else {
-            lv_label_set_text(input_label, input_buffer);
-        }
+    if (!input_label) return;
+    if (input_len == 0) {
+        lv_label_set_text(input_label, placeholder);
+    } else {
+        lv_label_set_text(input_label, input_buffer);
+    }
+    /* Where there is spare room, size the field to the wrapped text so it grows
+     * as more is typed and shrinks again on backspace, capped at the gap above
+     * the keys. Measured by LVGL rather than predicted, so wrapping and padding
+     * are accounted for exactly. */
+    if (kb_field_max_h > kb_field_base_h) {
+        lv_obj_set_height(input_label, LV_SIZE_CONTENT);
+        lv_obj_update_layout(input_label);
+        lv_coord_t h = lv_obj_get_height(input_label);
+        if (h < kb_field_base_h) h = kb_field_base_h;
+        if (h > kb_field_max_h) h = kb_field_max_h;
+        lv_obj_set_height(input_label, h);
     }
 }
 
 static void update_key_labels() {
-#if defined(CONFIG_USE_TOUCHSCREEN)
-    // touch build uses btnmatrix; rebuild its map/texts
+#if defined(CONFIG_USE_TOUCHSCREEN) || defined(CONFIG_USE_JOYSTICK)
+    // touch/joystick builds use btnmatrix; rebuild its map/texts
     if (key_matrix) {
         build_key_matrix();
         return;
@@ -796,6 +1155,7 @@ static void keyboard_create() {
     is_caps = start_with_caps;
     start_with_caps = true; /* reset so next open gets default (caps) */
     is_symbols_mode = false;
+    kb_sym2 = false;
     input_len = 0;
     memset(input_buffer, 0, sizeof(input_buffer));
     if (has_pending_initial_text) {
@@ -818,23 +1178,33 @@ static void keyboard_create() {
     lv_obj_set_style_bg_color(root, kb_bg(), 0);
     lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
 
-    int padding = keyboard_layout_padding();
-    int display_height = keyboard_display_height();
+    /* Field and keys share one geometry source so the fraction of the screen
+     * given to text entry stays proportional at every resolution. */
+    kb_metrics_t m;
+    kb_compute_metrics(&m, LV_HOR_RES, screen_height, status_bar_height);
     lv_color_t text = kb_text();
     lv_color_t surface = kb_surface();
     lv_coord_t radius = kb_radius();
     input_label = lv_label_create(root);
-    lv_obj_set_size(input_label, LV_HOR_RES - 2 * padding, display_height - 2 * padding);
+    lv_obj_set_size(input_label, m.matrix_w, m.field_h);
     lv_obj_set_style_bg_color(input_label, surface, 0);
     lv_obj_set_style_bg_opa(input_label, LV_OPA_COVER, 0);
     lv_obj_set_style_text_color(input_label, text, 0);
-    lv_obj_set_style_pad_all(input_label, padding, 0);
+    lv_obj_set_style_pad_hor(input_label, m.pad_h, 0);
+    lv_obj_set_style_pad_ver(input_label, kb_clamp_int(m.field_h / 6, 2, GUI_SAFEAREA_VER), 0);
     lv_obj_set_style_radius(input_label, radius, 0);
     lv_obj_set_style_border_width(input_label, 1, 0);
     lv_obj_set_style_border_color(input_label, text, 0);
     lv_obj_set_style_border_opa(input_label, LV_OPA_30, 0);
-    lv_obj_set_pos(input_label, padding, status_bar_height + padding);
-    lv_label_set_long_mode(input_label, LV_LABEL_LONG_SCROLL_CIRCULAR);
+    lv_obj_set_pos(input_label, m.pad_h, status_bar_height + GUI_SAFEAREA_VER);
+    /* When the field can grow, wrap so more text stays visible as it expands;
+     * otherwise keep the single scrolling line. */
+    lv_label_set_long_mode(input_label,
+                           m.field_max_h > m.field_h ? LV_LABEL_LONG_WRAP
+                                                     : LV_LABEL_LONG_SCROLL_CIRCULAR);
+    lv_obj_set_style_text_align(input_label, LV_TEXT_ALIGN_LEFT, 0);
+    kb_field_base_h = m.field_h;
+    kb_field_max_h = m.field_max_h;
     update_input_label();
 
     // ensure styles are initialized so we can temporarily zero radius
@@ -860,6 +1230,8 @@ static void keyboard_create() {
     // use a single btnmatrix to render the keyboard for touch/joystick builds
     recreate_keyboard_buttons();
 #elif defined(CONFIG_USE_ENCODER) && !defined(CONFIG_USE_JOYSTICK)
+    int display_height = keyboard_display_height();
+    int padding = keyboard_layout_padding();
     encoder_cont = lv_obj_create(root);
     lv_obj_remove_style_all(encoder_cont);
     lv_obj_set_size(encoder_cont, LV_HOR_RES, display_height);
@@ -949,11 +1321,14 @@ static void keyboard_destroy() {
         shift_btn_id = -1;
         pressed_btn_id = -1;
         input_label = NULL;
+        kb_field_base_h = 0;
+        kb_field_max_h = 0;
         submit_callback = NULL;
         immediate_callback = NULL;
         input_len = 0;
         input_buffer[0] = '\0';
         is_symbols_mode = false;
+        kb_sym2 = false;
         is_caps = true;
         is_capslock = false;
 #if defined(CONFIG_USE_ENCODER) && !defined(CONFIG_USE_JOYSTICK)
@@ -984,10 +1359,8 @@ static void keyboard_hold_invert_cb(lv_timer_t *t) {
     joy_holding_letter = true;
     build_key_matrix();
     // Re-apply focus highlight on the held key
-    const int *lens = get_current_row_lengths();
-    int id = 0;
-    for (int r = 0; r < cursor_row; r++) id += lens[r];
-    id += cursor_col;
+    int id = kb_cursor_to_btn_id(cursor_row, cursor_col);
+    if (id < 0) return;
     lv_btnmatrix_set_selected_btn(key_matrix, id);
     lv_btnmatrix_set_btn_ctrl(key_matrix, id, LV_BTNMATRIX_CTRL_CHECKED);
     joy_focused_btn_id = id;
@@ -1106,7 +1479,10 @@ static void handle_hardware_button_press_keyboard(InputEvent *event) {
     if (event->type == INPUT_TYPE_JOYSTICK) {
         int button = event->data.joystick_index;
         bool pressed = event->data.joystick_pressed;
-        const int *row_lens = get_current_row_lengths();
+        /* The btnmatrix path navigates over selectable keys only, so layout
+         * spacers are not part of the cursor space. */
+        const int *row_lens = key_matrix ? kb_matrix_row_lens() : get_current_row_lengths();
+        int rows = key_matrix ? kb_active_rows() : num_rows;
 
         // Navigation buttons (only on press, not release)
         if (pressed) {
@@ -1115,7 +1491,7 @@ static void handle_hardware_button_press_keyboard(InputEvent *event) {
             } else if (button == 3) { // right
                 if (cursor_col < row_lens[cursor_row] - 1) cursor_col++; else cursor_col = 0;
             } else if (button == 2) { // up
-                cursor_row = (cursor_row > 0) ? cursor_row - 1 : num_rows - 1;
+                cursor_row = (cursor_row > 0) ? cursor_row - 1 : rows - 1;
                 if (cursor_col >= row_lens[cursor_row]) cursor_col = row_lens[cursor_row] - 1;
             } else if (button == 4) { // down
 #ifdef CONFIG_IS_ATOMS3R
@@ -1124,11 +1500,11 @@ static void handle_hardware_button_press_keyboard(InputEvent *event) {
                 if (cursor_col + 1 < row_lens[cursor_row]) {
                     cursor_col++;
                 } else {
-                    cursor_row = (cursor_row + 1) % num_rows;
+                    cursor_row = (cursor_row + 1) % rows;
                     cursor_col = 0;
                 }
 #else
-                cursor_row = (cursor_row < num_rows - 1) ? cursor_row + 1 : 0;
+                cursor_row = (cursor_row < rows - 1) ? cursor_row + 1 : 0;
                 if (cursor_col >= row_lens[cursor_row]) cursor_col = row_lens[cursor_row] - 1;
 #endif
             }
@@ -1138,13 +1514,9 @@ static void handle_hardware_button_press_keyboard(InputEvent *event) {
 
 #if defined(CONFIG_USE_TOUCHSCREEN) || defined(CONFIG_USE_JOYSTICK)
         if (key_matrix) {
-            // Map (cursor_row, cursor_col) to btnmatrix button index
-            const int *lens = get_current_row_lengths();
-            int id = 0;
-            for (int r = 0; r < cursor_row; r++) {
-                id += lens[r];
-            }
-            id += cursor_col;
+            // Map (cursor_row, cursor_col) to btnmatrix button index, skipping spacers
+            int id = kb_cursor_to_btn_id(cursor_row, cursor_col);
+            if (id < 0) return;
             
             // Handle button 1 (select) with hold-to-invert for letters
             if (button == 1) {
@@ -1284,7 +1656,6 @@ static void handle_hardware_button_press_keyboard(InputEvent *event) {
         int touch_y = event->data.touch_data.point.y;
         ESP_LOGD(TAG, "touch PR x=%d y=%d", touch_x, touch_y);
         
-        int screen_width = LV_HOR_RES;
         int screen_height = LV_VER_RES;
         int status_bar_height = GUI_STATUS_BAR_H;
         int display_height = keyboard_display_height();
@@ -1292,57 +1663,18 @@ static void handle_hardware_button_press_keyboard(InputEvent *event) {
         int keys_start_y = status_bar_height + display_height + padding * 2;
 
         int row = -1;
-        int km_x = 0, km_y = 0, km_w = 0, km_h = 0;
+        int col = -1;
         if (key_matrix) {
-            km_x = lv_obj_get_x(key_matrix);
-            km_y = lv_obj_get_y(key_matrix);
-            km_w = lv_obj_get_width(key_matrix);
-            km_h = lv_obj_get_height(key_matrix);
-            if (touch_y < km_y || touch_y >= km_y + km_h || touch_x < km_x || touch_x >= km_x + km_w) return;
-            int row_h = km_h / num_rows;
-            if (row_h <= 0) row_h = 1;
-            row = (touch_y - km_y) / row_h;
-            if (row < 0) row = 0;
-            if (row >= num_rows) row = num_rows - 1;
+            /* Geometry comes from the same arithmetic lv_btnmatrix uses, so the
+             * drawn key and the hit key always agree. Spacers yield no column. */
+            if (!kb_matrix_hit_test(touch_x, touch_y, &row, &col)) return;
         } else {
             if (touch_y < keys_start_y) return;
             int keys_area_height = screen_height - keys_start_y - padding;
             int key_height = keys_area_height / num_rows; if (key_height <= 0) key_height = 1;
             row = (touch_y - keys_start_y) / key_height;
-        }
-
-        if (row >= 0 && row < num_rows) {
-            const char *(*current_keys)[10] = is_symbols_mode ? symbols : keys;
-            const int *current_row_lengths = is_symbols_mode ? symbols_row_lengths : row_lengths;
-            int create_row_length = max_row_lengths[row];
-            int base_key_width = screen_width / create_row_length;
-            
-            // calculate which column was touched considering variable widths
-            int col = -1;
-            if (key_matrix) {
-                // match btnmatrix width logic: width units per button (SHIFT/DEL/space -> 2 units)
-                int total_key_width = km_w;
-                int units_sum = 0;
-                for (int c = 0; c < current_row_lengths[row]; c++) {
-                    const char *src = current_keys[row][c];
-                    int w = 1;
-                    if (!is_symbols_mode && (strcmp(src, "SHIFT") == 0 || strcmp(src, "DEL") == 0 || strcmp(src, " ") == 0)) w = 2;
-                    units_sum += w;
-                }
-                if (units_sum < 1) units_sum = 1;
-                int unit_w = total_key_width / units_sum;
-                int x0 = km_x;
-                int x = x0;
-                for (int c = 0; c < current_row_lengths[row]; c++) {
-                    const char *src = current_keys[row][c];
-                    int w = 1;
-                    if (!is_symbols_mode && (strcmp(src, "SHIFT") == 0 || strcmp(src, "DEL") == 0 || strcmp(src, " ") == 0)) w = 2;
-                    int key_w = w * unit_w;
-                    int key_x = x;
-                    if (touch_x >= key_x && touch_x < key_x + key_w) { col = c; break; }
-                    x += key_w;
-                }
-            } else {
+            const int *current_row_lengths = get_current_row_lengths();
+            if (row >= 0 && row < num_rows) {
                 for (int c = 0; c < current_row_lengths[row]; c++) {
                     int key_x, key_w;
                     get_key_position(row, c, &key_x, &key_w, is_symbols_mode);
@@ -1352,67 +1684,97 @@ static void handle_hardware_button_press_keyboard(InputEvent *event) {
                     }
                 }
             }
+        }
 
-            ESP_LOGD(TAG, "touch row=%d col=%d (sym=%d caps=%d capslock=%d)", row, col, (int)is_symbols_mode, (int)is_caps, (int)is_capslock);
-            if (col >= 0) {
-                if (!key_matrix) {
-                    // Find the key button object (legacy per-key objects)
-                    int key_index = 0;
-                    for (int rr = 0; rr < num_rows; rr++) {
-                        for (int cc = 0; cc < max_row_lengths[rr]; cc++) {
-                            if (rr == row && cc == col) {
-                                int child_idx = 1 + key_index;
-                                pressed_key_btn = lv_obj_get_child(root, child_idx);
-                                if (pressed_key_btn) {
-                                    lv_obj_set_style_bg_color(pressed_key_btn, kb_accent(), 0);
-                                }
+        ESP_LOGD(TAG, "touch row=%d col=%d (sym=%d caps=%d capslock=%d)", row, col, (int)is_symbols_mode, (int)is_caps, (int)is_capslock);
+        if (row >= 0 && col >= 0) {
+            const char *key = kb_key_label_at(row, col);
+            if (!key) return;
+
+            if (key_matrix) {
+                /* Mirror the joystick focus style for touch presses; cleared on release. */
+                int bid = kb_cursor_to_btn_id(row, col);
+                if (bid >= 0) {
+                    pressed_btn_id = bid;
+                    lv_btnmatrix_set_btn_ctrl(key_matrix, bid, LV_BTNMATRIX_CTRL_CHECKED);
+                }
+            } else {
+                // Find the key button object (legacy per-key objects)
+                int key_index = 0;
+                for (int rr = 0; rr < num_rows; rr++) {
+                    for (int cc = 0; cc < max_row_lengths[rr]; cc++) {
+                        if (rr == row && cc == col) {
+                            int child_idx = 1 + key_index;
+                            pressed_key_btn = lv_obj_get_child(root, child_idx);
+                            if (pressed_key_btn) {
+                                lv_obj_set_style_bg_color(pressed_key_btn, kb_accent(), 0);
                             }
-                            key_index++;
                         }
+                        key_index++;
                     }
                 }
-                const char* key = current_keys[row][col];
-                if (strcmp(key, "SHIFT") == 0) {
-                    if (is_caps) {
-                        // If SHIFT is already active, toggle capslock
-                        is_capslock = !is_capslock;
-                        is_caps = is_capslock; // Keep caps active if capslock is on
-                    } else {
-                        is_caps = true;
-                    }
-                    update_key_labels();
-                    ESP_LOGD(TAG, "shift toggled: caps=%d capslock=%d", (int)is_caps, (int)is_capslock);
-                } else if (strcmp(key, "SYM") == 0) {
-                    /* Switching to symbols mode rebuilds the keyboard and deletes existing key buttons.
-                     * Clear any stored pointer to the previously pressed key to avoid accessing
-                     * a freed object in the subsequent LV_INDEV_STATE_REL event. */
-                    pressed_key_btn = NULL;
-                    is_symbols_mode = true;
-                    recreate_keyboard_buttons();
-                } else if (strcmp(key, "ABC") == 0) {
-                    /* Same safety measure when switching back to alphabet mode. */
-                    pressed_key_btn = NULL;
-                    is_symbols_mode = false;
-                    recreate_keyboard_buttons();
-                } else if (strcmp(key, "Exit") == 0) {
-                    display_manager_go_back();
-                } else if (strcmp(key, "Done") == 0) {
-                    submit_text();
-                } else if (strcmp(key, "DEL") == 0) {
-                    remove_char_from_buffer();
-                } else if (strcmp(key, " ") == 0) {
-                    add_char_to_buffer(' ');
-                } else if (strlen(key) == 1) {
-                    char adjusted_char = key[0];
-                    if (!is_symbols_mode && strlen(key) == 1 && isalpha(adjusted_char)) {
-                        adjusted_char = is_caps ? toupper(adjusted_char) : tolower(adjusted_char);
-                    }
-                    add_char_to_buffer(adjusted_char);
-                    ESP_LOGD(TAG, "char added: %c", adjusted_char);
+            }
+
+            if (is_shift_key(key)) {
+                if (is_caps) {
+                    // If SHIFT is already active, toggle capslock
+                    is_capslock = !is_capslock;
+                    is_caps = is_capslock; // Keep caps active if capslock is on
+                } else {
+                    is_caps = true;
                 }
+                update_key_labels();
+                ESP_LOGD(TAG, "shift toggled: caps=%d capslock=%d", (int)is_caps, (int)is_capslock);
+            } else if (is_symbol_key(key) || strcmp(key, "123") == 0) {
+                /* Switching pages rebuilds the matrix and deletes existing key
+                 * buttons. Clear any stored pointer to the previously pressed
+                 * key to avoid touching a freed object on the REL event. */
+                pressed_key_btn = NULL;
+                pressed_btn_id = -1;
+                kb_sym2 = false;
+                is_symbols_mode = true;
+                recreate_keyboard_buttons();
+                ensure_valid_cursor();
+            } else if (strcmp(key, "#+=") == 0) {
+                pressed_key_btn = NULL;
+                pressed_btn_id = -1;
+                is_symbols_mode = true;
+                kb_sym2 = true;
+                recreate_keyboard_buttons();
+                ensure_valid_cursor();
+            } else if (strcmp(key, "ABC") == 0) {
+                pressed_key_btn = NULL;
+                pressed_btn_id = -1;
+                is_symbols_mode = false;
+                kb_sym2 = false;
+                recreate_keyboard_buttons();
+                ensure_valid_cursor();
+            } else if (is_exit_key(key)) {
+                display_manager_go_back();
+            } else if (is_done_key(key)) {
+                submit_text();
+            } else if (is_del_key(key)) {
+                remove_char_from_buffer();
+            } else if (is_space_key(key)) {
+                add_char_to_buffer(' ');
+            } else if (strlen(key) == 1) {
+                char adjusted_char = key[0];
+                if (!is_symbols_mode && isalpha((unsigned char)adjusted_char)) {
+                    adjusted_char = is_caps ? toupper(adjusted_char) : tolower(adjusted_char);
+                }
+                add_char_to_buffer(adjusted_char);
+                ESP_LOGD(TAG, "char added: %c", adjusted_char);
             }
         }
     } else if (event->type == INPUT_TYPE_TOUCH && event->data.touch_data.state == LV_INDEV_STATE_REL) {
+        if (pressed_btn_id >= 0 && key_matrix) {
+            bool keep = (pressed_btn_id == joy_focused_btn_id) ||
+                        (pressed_btn_id == shift_btn_id && (is_caps || is_capslock));
+            if (!keep) {
+                lv_btnmatrix_clear_btn_ctrl(key_matrix, pressed_btn_id, LV_BTNMATRIX_CTRL_CHECKED);
+            }
+            pressed_btn_id = -1;
+        }
         if (pressed_key_btn) {
             // Only restore style if not SHIFT key, otherwise let update_key_labels() handle it
             lv_obj_t *key_label = lv_obj_get_child(pressed_key_btn, 0);
@@ -1532,15 +1894,24 @@ static void key_matrix_event_cb(lv_event_t *e) {
             is_caps = true;
         }
         build_key_matrix();
-    } else if (strcmp(txt, "SYM") == 0) {
+    } else if (strcmp(txt, "123") == 0) {
         is_symbols_mode = true;
+        kb_sym2 = false;
         build_key_matrix();
+        ensure_valid_cursor();
+    } else if (strcmp(txt, "#+=") == 0) {
+        is_symbols_mode = true;
+        kb_sym2 = true;
+        build_key_matrix();
+        ensure_valid_cursor();
     } else if (strcmp(txt, "ABC") == 0) {
         is_symbols_mode = false;
+        kb_sym2 = false;
         build_key_matrix();
-    } else if (strcmp(txt, "Exit") == 0) {
+        ensure_valid_cursor();
+    } else if (strcmp(txt, "Exit") == 0 || strcmp(txt, LV_SYMBOL_CLOSE) == 0) {
         display_manager_go_back();
-    } else if (strcmp(txt, "Done") == 0) {
+    } else if (strcmp(txt, "Done") == 0 || strcmp(txt, LV_SYMBOL_NEW_LINE) == 0) {
         submit_text();
     } else if (strcmp(txt, LV_SYMBOL_BACKSPACE) == 0 || strcmp(txt, "DEL") == 0) {
         remove_char_from_buffer();
@@ -1566,115 +1937,98 @@ static void key_matrix_event_cb(lv_event_t *e) {
 static void build_key_matrix(void) {
 #if defined(CONFIG_USE_TOUCHSCREEN) || defined(CONFIG_USE_JOYSTICK)
     if (!root) return;
-    int screen_width = LV_HOR_RES;
-    int screen_height = LV_VER_RES;
-    int status_bar_height = GUI_STATUS_BAR_H;
-    int padding = keyboard_layout_padding();
-    int display_height = keyboard_display_height();
-    int keys_start_y = status_bar_height + display_height + padding * 2;
-    int keys_area_height = screen_height - keys_start_y - padding;
-    int matrix_width = screen_width - 2 * padding;
-    int key_target = matrix_width / KEYBOARD_COLUMNS;
-    int matrix_height = key_target * num_rows * 9 / 5;
-    if (matrix_height > keys_area_height) matrix_height = keys_area_height;
-    if (matrix_height < 1) matrix_height = keys_area_height;
-    int matrix_y = keys_start_y + (keys_area_height - matrix_height) / 2;
 
-    const char *(*current_keys)[10] = get_current_keys();
-    const int *row_lens = get_current_row_lengths();
+    kb_metrics_t m;
+    kb_compute_metrics(&m, LV_HOR_RES, LV_VER_RES, GUI_STATUS_BAR_H);
 
-    static char map_text_storage[64][8];
+    const kb_key_desc_t * const *page = kb_active_page();
+
+    static char map_text_storage[KB_IOS_MAX_BTNS][KB_KEY_TEXT_LEN];
     int map_idx = 0;
     int btn_idx = 0;
     shift_btn_id = -1;
-    // Calculate focused button index from cursor position
-    int focused_btn_idx = 0;
-    if (joy_holding_letter) {
-        for (int r = 0; r < cursor_row && r < num_rows; r++) {
-            focused_btn_idx += row_lens[r];
-        }
-        focused_btn_idx += cursor_col;
-    } else {
-        focused_btn_idx = -1; // No focus when not holding
-    }
-    for (int r = 0; r < num_rows; r++) {
-        for (int c = 0; c < row_lens[r]; c++) {
-            const char *src = current_keys[r][c];
-            const char *label = src;
-            if (is_shift_key(src)) label = LV_SYMBOL_UP;
-            else if (is_del_key(src)) label = LV_SYMBOL_BACKSPACE;
-            else if (!is_symbols_mode && is_alpha_key(src)) {
-                char ch;
-                // Use inverted case for the focused button when holding
-                if (joy_holding_letter && btn_idx == focused_btn_idx) {
-                    ch = joy_inverted_case ? (char)toupper((unsigned char)src[0]) : (char)tolower((unsigned char)src[0]);
-                } else {
-                    ch = is_caps ? (char)toupper((unsigned char)src[0]) : (char)tolower((unsigned char)src[0]);
+    /* Inverted-case preview applies to the button the joystick is holding. */
+    int focused_btn_idx = joy_holding_letter ? kb_cursor_to_btn_id(cursor_row, cursor_col) : -1;
+
+    for (int r = 0; r < KB_IOS_ROWS; r++) {
+        const kb_key_desc_t *k = page[r];
+        for (; k && k->label; k++) {
+            if (btn_idx >= KB_IOS_MAX_BTNS - 1) break;
+            const char *label = k->label;
+            if (!k->spacer) {
+                if (is_shift_key(label)) label = LV_SYMBOL_UP;
+                else if (is_del_key(label)) label = LV_SYMBOL_BACKSPACE;
+                else if (is_exit_key(label)) label = LV_SYMBOL_CLOSE;
+                else if (is_done_key(label)) label = LV_SYMBOL_NEW_LINE;
+                else if (!is_symbols_mode && is_alpha_key(label)) {
+                    char ch;
+                    if (joy_holding_letter && btn_idx == focused_btn_idx) {
+                        ch = joy_inverted_case ? (char)toupper((unsigned char)label[0])
+                                               : (char)tolower((unsigned char)label[0]);
+                    } else {
+                        ch = is_caps ? (char)toupper((unsigned char)label[0])
+                                     : (char)tolower((unsigned char)label[0]);
+                    }
+                    map_text_storage[btn_idx][0] = ch;
+                    map_text_storage[btn_idx][1] = '\0';
+                    label = map_text_storage[btn_idx];
                 }
-                map_text_storage[btn_idx][0] = ch;
-                map_text_storage[btn_idx][1] = '\0';
-                label = map_text_storage[btn_idx];
             }
-            if (label == src) {
+            if (label == k->label) {
                 size_t n = strlen(label);
-                if (n > sizeof(map_text_storage[0]) - 1) n = sizeof(map_text_storage[0]) - 1;
+                if (n > KB_KEY_TEXT_LEN - 1) n = KB_KEY_TEXT_LEN - 1;
                 memcpy(map_text_storage[btn_idx], label, n);
                 map_text_storage[btn_idx][n] = '\0';
                 label = map_text_storage[btn_idx];
             }
             btn_map[map_idx++] = label;
-            if (is_shift_key(src)) shift_btn_id = btn_idx;
+            if (is_shift_key(k->label)) shift_btn_id = btn_idx;
             btn_idx++;
         }
-        if (r < num_rows - 1) {
-            btn_map[map_idx++] = "\n";
-        }
+        if (r < KB_IOS_ROWS - 1) btn_map[map_idx++] = "\n";
     }
     btn_map[map_idx] = "";
     btn_map_len = map_idx;
 
     if (!key_matrix) {
         key_matrix = lv_btnmatrix_create(root);
+        if (!key_matrix) return;
         lv_obj_remove_style_all(key_matrix);
-        lv_obj_set_pos(key_matrix, padding, matrix_y);
-        lv_obj_set_size(key_matrix, matrix_width, matrix_height);
-        lv_obj_set_style_bg_color(key_matrix, kb_surface(), LV_PART_MAIN);
-        lv_obj_set_style_bg_opa(key_matrix, LV_OPA_10, LV_PART_MAIN);
-        lv_obj_set_style_radius(key_matrix, kb_radius(), LV_PART_MAIN);
-        lv_obj_set_style_pad_all(key_matrix, 2, LV_PART_MAIN);
-        lv_obj_set_style_pad_row(key_matrix, 3, LV_PART_MAIN);
-        lv_obj_set_style_pad_column(key_matrix, 2, LV_PART_MAIN);
         lv_obj_add_style(key_matrix, &style_key_btn, LV_PART_ITEMS);
         lv_obj_add_style(key_matrix, &style_key_label, LV_PART_ITEMS);
         lv_obj_add_event_cb(key_matrix, key_matrix_event_cb, LV_EVENT_VALUE_CHANGED, NULL);
-    } else {
-        lv_obj_set_pos(key_matrix, padding, matrix_y);
-        lv_obj_set_size(key_matrix, matrix_width, matrix_height);
+        /* Transparent so the gutter shows the root background, iOS style. */
+        lv_obj_set_style_bg_opa(key_matrix, LV_OPA_TRANSP, LV_PART_MAIN);
     }
 
-    lv_obj_set_style_text_font(key_matrix,
-#ifdef CONFIG_CROWPANEL_ADVANCED_P4
-                               accessibility_get_font_body(),
-#else
-                               key_target <= 22 ? &lv_font_montserrat_12 : &lv_font_montserrat_14,
-#endif
-                               LV_PART_ITEMS);
+    lv_obj_set_pos(key_matrix, m.pad_h, m.matrix_y);
+    lv_obj_set_size(key_matrix, m.matrix_w, m.matrix_h);
+    lv_obj_set_style_radius(key_matrix, kb_radius(), LV_PART_MAIN);
+    lv_obj_set_style_pad_all(key_matrix, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_row(key_matrix, m.gap, LV_PART_MAIN);
+    lv_obj_set_style_pad_column(key_matrix, m.gap, LV_PART_MAIN);
+    lv_obj_set_style_text_font(key_matrix, m.font, LV_PART_ITEMS);
 
     lv_btnmatrix_set_map(key_matrix, btn_map);
 
+    /* Widths and controls must be applied after set_map, which allocates the
+     * button areas. Spacers keep their reserved width but stay HIDDEN, so they
+     * lay out without being drawn or tappable. */
     int id = 0;
-    for (int r = 0; r < num_rows; r++) {
-        for (int c = 0; c < row_lens[r]; c++) {
-            const char *src = current_keys[r][c];
-            int w = 1;
-            if (!is_symbols_mode) {
-                if (strcmp(src, "SHIFT") == 0 || strcmp(src, "DEL") == 0 || strcmp(src, " ") == 0) w = 2;
-            }
-            lv_btnmatrix_set_btn_width(key_matrix, id, w);
-            // clear any stale CHECKED state from previous layouts before marking as checkable
+    for (int r = 0; r < KB_IOS_ROWS; r++) {
+        const kb_key_desc_t *k = page[r];
+        for (; k && k->label && id < btn_idx; k++, id++) {
+            lv_btnmatrix_set_btn_width(key_matrix, id, k->units ? k->units : 1);
             lv_btnmatrix_clear_btn_ctrl(key_matrix, id, LV_BTNMATRIX_CTRL_CHECKED);
-            lv_btnmatrix_set_btn_ctrl(key_matrix, id, LV_BTNMATRIX_CTRL_CHECKABLE);
-            id++;
+            lv_btnmatrix_clear_btn_ctrl(key_matrix, id, LV_BTNMATRIX_CTRL_HIDDEN);
+            lv_btnmatrix_clear_btn_ctrl(key_matrix, id, LV_BTNMATRIX_CTRL_CLICK_TRIG);
+            /* Never recolor: the layout contains a literal '#' key. */
+            lv_btnmatrix_clear_btn_ctrl(key_matrix, id, LV_BTNMATRIX_CTRL_RECOLOR);
+            if (k->spacer) {
+                lv_btnmatrix_set_btn_ctrl(key_matrix, id, LV_BTNMATRIX_CTRL_HIDDEN);
+            } else {
+                lv_btnmatrix_set_btn_ctrl(key_matrix, id, LV_BTNMATRIX_CTRL_CHECKABLE);
+            }
         }
     }
 
@@ -1687,17 +2041,18 @@ static void build_key_matrix(void) {
         }
     }
 
+    lv_color_t accent = kb_accent();
+    lv_color_t sel_fg = kb_sel_text();
     lv_obj_set_style_bg_color(key_matrix, kb_surface(), LV_PART_ITEMS | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(key_matrix, LV_OPA_COVER, LV_PART_ITEMS | LV_STATE_DEFAULT);
     lv_obj_set_style_text_color(key_matrix, kb_text(), LV_PART_ITEMS | LV_STATE_DEFAULT);
-    lv_color_t accent = kb_accent();
-    lv_color_t sel_fg = kb_sel_text();
     lv_obj_set_style_bg_color(key_matrix, accent, LV_PART_ITEMS | LV_STATE_CHECKED);
     lv_obj_set_style_bg_opa(key_matrix, LV_OPA_COVER, LV_PART_ITEMS | LV_STATE_CHECKED);
     lv_obj_set_style_text_color(key_matrix, sel_fg, LV_PART_ITEMS | LV_STATE_CHECKED);
 
-    // any rebuild invalidates previous focus id; it will be re-established on next joystick move
+    // a rebuild invalidates the previous focus/press ids; they are re-established on the next input
     joy_focused_btn_id = -1;
+    pressed_btn_id = -1;
 
     if (radius_override_active) {
         lv_style_set_radius(&style_key_btn, saved_key_radius);
@@ -1753,9 +2108,10 @@ static void get_key_position(int row, int col, int *x, int *width, bool symbols_
 }
 
 static void ensure_valid_cursor(void) {
-    const int *row_lens = get_current_row_lengths();
+    const int *row_lens = key_matrix ? kb_matrix_row_lens() : get_current_row_lengths();
+    int rows = key_matrix ? kb_active_rows() : num_rows;
     if (cursor_row < 0) cursor_row = 0;
-    if (cursor_row >= num_rows) cursor_row = num_rows - 1;
+    if (cursor_row >= rows) cursor_row = rows - 1;
     int max_col = row_lens[cursor_row] - 1;
     if (max_col < 0) max_col = 0;
     if (cursor_col < 0) cursor_col = 0;

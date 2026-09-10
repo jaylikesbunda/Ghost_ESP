@@ -189,6 +189,7 @@ typedef struct {
     uint32_t tx_dropped_packets;
     uint32_t rx_queue_dropped_packets;
     uint32_t rx_crc_error_count;
+    uint32_t stream_ignored_packets;
     size_t rx_buffer_high_watermark;
     uint32_t rx_high_water_alerts;
 
@@ -958,7 +959,7 @@ static void handle_received_packet(esp_comm_manager_t* comm, const comm_packet_t
                         comm->protocol_task_handle = t;
                     }
                     unlock_state(comm);
-                    printf("Handshake complete!\n");
+                    printf("Handshake completed!\n");
                     terminal_view_add_text("Handshake completed!\n");
 #ifdef CONFIG_HAS_MIC
                     // Headless boards skip boot-time mic capture; start the
@@ -1031,7 +1032,7 @@ static void handle_received_packet(esp_comm_manager_t* comm, const comm_packet_t
                     comm->protocol_task_handle = t;
                 }
                 unlock_state(comm);
-                printf("Handshake complete!\n");
+                printf("Handshake completed!\n");
                 terminal_view_add_text("Handshake completed!\n");
 #ifdef CONFIG_HAS_MIC
                 // Headless boards skip boot-time mic capture; start the
@@ -1068,17 +1069,29 @@ static void handle_received_packet(esp_comm_manager_t* comm, const comm_packet_t
 
         case PACKET_TYPE_STREAM:
             if (comm->state != COMM_STATE_CONNECTED) {
-                printf("STREAM packet ignored: not connected\n");
+                comm->stream_ignored_packets++;
+                if ((comm->stream_ignored_packets & 0x0F) == 1) {
+                    printf("STREAM packet ignored: not connected (ignored=%lu)\n",
+                           (unsigned long)comm->stream_ignored_packets);
+                }
                 break;
             }
             if (packet->length < 1) {
-                printf("STREAM packet ignored: empty payload\n");
+                comm->stream_ignored_packets++;
+                if ((comm->stream_ignored_packets & 0x0F) == 1) {
+                    printf("STREAM packet ignored: empty payload (ignored=%lu)\n",
+                           (unsigned long)comm->stream_ignored_packets);
+                }
                 break;
             }
             {
                 uint8_t channel = packet->data[0];
                 if (channel >= COMM_MAX_STREAM_CHANNELS) {
-                    printf("STREAM packet ignored: invalid channel %d\n", channel);
+                    comm->stream_ignored_packets++;
+                    if ((comm->stream_ignored_packets & 0x0F) == 1) {
+                        printf("STREAM packet ignored: invalid channel %d (ignored=%lu)\n",
+                               channel, (unsigned long)comm->stream_ignored_packets);
+                    }
                     break;
                 }
                 comm_stream_callback_t cb = comm->stream_handlers[channel];

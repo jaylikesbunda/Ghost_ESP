@@ -882,7 +882,7 @@ esp_err_t ap_manager_init(void) {
 
     // Check if AP is disabled in settings
     if (!settings_get_ap_enabled(&G_Settings)) {
-        glog("Access Point disabled in settings, skipping AP initialization\n");
+        glog("Access point: off\n");
         return ESP_OK;
     }
 

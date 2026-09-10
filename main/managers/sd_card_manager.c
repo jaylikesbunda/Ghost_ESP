@@ -647,7 +647,7 @@ static void sdmmc_card_print_info(const sdmmc_card_t *card) {
     return;
   }
 
-  printf("SD card: %s, %lluMB (%s)\n",
+  printf("SD card ready: %s, %lluMB (%s)\n",
          (card->ocr & SD_OCR_SDHC_CAP) ? "SDHC/SDXC" : "SDSC",
          ((uint64_t)card->csd.capacity) * card->csd.sector_size / (1024 * 1024),
          (card->csd.tr_speed > 25000000) ? "high speed" : "default speed");
@@ -788,7 +788,6 @@ esp_err_t sd_card_init(void) {
   sd_card_manager.is_initialized = true;
   s_mount_type = MOUNT_SDMMC;
   sdmmc_card_print_info(sd_card_manager.card);
-  printf("SD card ready (SDMMC 1-bit).\n");
 
   sd_card_setup_directory_structure();
 
@@ -843,7 +842,6 @@ esp_err_t sd_card_init(void) {
 
   sd_card_manager.is_initialized = true;
   sdmmc_card_print_info(sd_card_manager.card);
-  printf("SD card ready (SDMMC 4-bit).\n");
 
   sd_card_setup_directory_structure();
 
@@ -1187,7 +1185,6 @@ esp_err_t sd_card_init(void) {
   sd_card_manager.is_initialized = true;
   s_mount_type = MOUNT_SPI;
   sdmmc_card_print_info(sd_card_manager.card);
-  printf("SD card ready (SPI).\n");
 
   sd_card_setup_directory_structure();
 
@@ -1216,7 +1213,6 @@ esp_err_t sd_card_init(void) {
 
   sd_card_manager.is_initialized = true;
   sdmmc_card_print_info(sd_card_manager.card);
-  printf("SD card ready.\n");
 
   sd_card_setup_directory_structure();
 

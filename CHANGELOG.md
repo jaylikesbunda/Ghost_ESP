@@ -41,6 +41,8 @@ Untagged entries are by ([@jaylikesbunda](https://github.com/jaylikesbunda)). A 
 - Mapped IR buttons to theme palette
 - Reduced GhostScript RAM use on across all boards
 - Matched Ethernet dashboard status card to the rounded action rows
+- Cleaned up boot and GhostLink console output
+- Restyled the on-screen keyboard with a standard iOS-style layout
 
 ### Fixed
 - Fixed GhostScript crash when an event listener received an event

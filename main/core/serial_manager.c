@@ -1166,8 +1166,7 @@ int handle_serial_command(const char *input) {
         strcmp(actual_command, "badusb trackpad_stop") == 0 ||
         strcmp(actual_command, "badusb stop") == 0;
     if (!quiet_badusb_setting) {
-      glog("Received command from peer: %s\n", actual_command);
-      glog("Executing received command: %s\n", actual_command);
+      glog("Peer command: %s\n", actual_command);
     }
     if (handle_peer_badusb_trackpad_fast(actual_command)) {
       esp_comm_manager_set_remote_command_flag(false);

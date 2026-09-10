@@ -1056,7 +1056,7 @@ void app_main(void) {
     esp_err_t io_ret;
     MEASURE_INIT_RAM("Joystick IO Expander init", io_ret = joystick_io_expander_init());
     if (io_ret == ESP_OK) {
-        printf("IO Expander initialized successfully for joystick input\n");
+        printf("Joystick: IO expander\n");
         // Map to display manager expectations: [0]=Left, [1]=Select, [2]=Up, [3]=Right, [4]=Down
         joystick_init(&joysticks[0], 3, HOLD_LIMIT, true);  // Left button (P03) -> joysticks[0]
         joystick_init(&joysticks[1], 2, HOLD_LIMIT, true);  // Select button (P02) -> joysticks[1]
@@ -1091,6 +1091,7 @@ void app_main(void) {
     joystick_init(&joysticks[3], CONFIG_R_BTN, HOLD_LIMIT, true);  // Right
     joystick_init(&joysticks[4], CONFIG_D_BTN, HOLD_LIMIT, true);  // Down
 #endif
+    printf("Joystick: GPIO buttons\n");
 #if defined(CONFIG_JOYSTICK_COM_PIN) && CONFIG_JOYSTICK_COM_PIN >= 0
     {
         gpio_config_t com_conf = {
@@ -1105,7 +1106,6 @@ void app_main(void) {
     }
 #endif
 #endif
-    printf("Joystick Setup Successfully...\n");
 #endif
     ESP_LOGI(TAG, "Initializing display manager");
     MEASURE_INIT_RAM("Display Manager", display_manager_init() );
@@ -1261,6 +1261,7 @@ void app_main(void) {
 #endif
     }
 
+    printf("\n");
     ESP_LOGI(TAG, "Build config used: %s", CONFIG_BUILD_CONFIG_TEMPLATE);
     printf("Build Name: %s\n", CONFIG_BUILD_CONFIG_TEMPLATE);
     
@@ -1333,6 +1334,7 @@ void app_main(void) {
     if (mem_monitor_err != ESP_OK) {
         ESP_LOGW(TAG, "Periodic RAM monitor failed to start: %s", esp_err_to_name(mem_monitor_err));
     }
+    printf("\n");
     print_boot_banner();
     printf("\n");
     printf("Type 'help' for available commands\n");
