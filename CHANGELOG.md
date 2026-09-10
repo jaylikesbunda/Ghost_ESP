@@ -53,7 +53,7 @@ Untagged entries are by ([@jaylikesbunda](https://github.com/jaylikesbunda)). A 
 - Fixed ESP32-C5 merged firmware failing to boot when flashed at `0x0` by placing the bootloader at the required `0x2000` offset - @yanxke (#395)
 - Fixed BadBLE poll timer leak on exit
 - Fixed lockscreen/ghostscript touch bar gaps on large screens
-- Fixed detail titles always showing Details
+- Fixed detail titles always showing 'Details'
 - Fixed PSRAM task stack leaks across Wi-Fi attacks, scans, Ethernet, nRF24, SubGHz and MIC visualizer
 - Fixed DIAL URL/session buffer leaks and uninitialized-pointer cleanup
 - Fixed leaked LVGL async payloads when the display queue is busy
