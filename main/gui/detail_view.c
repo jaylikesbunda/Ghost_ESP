@@ -13,6 +13,10 @@
 
 static const char *DV_TAG = "dv_nav";
 
+#define DV_MARQUEE_PERIOD_MS   30
+#define DV_MARQUEE_SPEED_PX_S  40
+#define DV_MARQUEE_HOLD_MS     1000
+
 uint32_t theme_palette_get_background(uint8_t theme);
 uint32_t theme_palette_get_surface(uint8_t theme);
 uint32_t theme_palette_get_surface_alt(uint8_t theme);
@@ -34,6 +38,10 @@ typedef struct {
 typedef struct {
     char *label;
     char *value;
+    lv_coord_t label_w;
+    lv_coord_t value_w;
+    lv_coord_t label_off;
+    lv_coord_t value_off;
 } detail_info_item_t;
 
 typedef enum {
@@ -68,6 +76,9 @@ struct detail_view_t {
     bool wrap_pending_down;
     bool wrap_pending_up;
     uint32_t last_step_ms;
+    lv_timer_t *info_marquee_timer;
+    uint32_t info_marquee_start_ms;
+    bool info_marquee_active;
 };
 
 static inline bool detail_view_should_use_compact_layout(int w, int h) {
@@ -94,6 +105,10 @@ static bool ensure_info_capacity(detail_view_t *dv, int need) {
     for (int i = dv->info_capacity; i < newcap; i++) {
         new_items[i].label = NULL;
         new_items[i].value = NULL;
+        new_items[i].label_w = -1;
+        new_items[i].value_w = -1;
+        new_items[i].label_off = 0;
+        new_items[i].value_off = 0;
     }
     dv->info_items = new_items;
     dv->info_capacity = newcap;
@@ -373,6 +388,141 @@ static void detail_view_sync_info_canvas(detail_view_t *dv) {
     lv_obj_invalidate(dv->info_canvas);
 }
 
+typedef struct {
+    lv_coord_t row_h;
+    lv_coord_t x_pad;
+    lv_coord_t label_x1;
+    lv_coord_t label_x2;
+    lv_coord_t value_x1;
+    lv_coord_t value_x2;
+    lv_coord_t value_full_x1;
+} detail_info_geom_t;
+
+static void detail_view_info_geom(const detail_view_t *dv, const lv_area_t *canvas, detail_info_geom_t *g) {
+    lv_coord_t row_w = lv_area_get_width(canvas);
+    g->row_h = get_info_row_height(dv);
+    g->x_pad = dv->compact_layout ? 4 : 6;
+    lv_coord_t split_x = canvas->x1 + (row_w * (dv->compact_layout ? 34 : 40)) / 100;
+    g->label_x1 = canvas->x1 + g->x_pad;
+    g->label_x2 = split_x - g->x_pad;
+    if (g->label_x2 < g->label_x1) g->label_x2 = g->label_x1;
+    g->value_x1 = split_x + g->x_pad;
+    g->value_x2 = canvas->x2 - g->x_pad;
+    if (g->value_x2 < g->value_x1) g->value_x2 = g->value_x1;
+    g->value_full_x1 = canvas->x1 + g->x_pad;
+}
+
+static lv_coord_t detail_view_info_measure(const char *text, const lv_font_t *font) {
+    if (!text || text[0] == '\0' || !font) return 0;
+    lv_point_t size;
+    lv_txt_get_size(&size, text, font, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_EXPAND);
+    return size.x;
+}
+
+static lv_coord_t detail_view_marquee_gap(const lv_font_t *font) {
+    lv_coord_t gap = lv_font_get_glyph_width(font, ' ', ' ') * LV_LABEL_WAIT_CHAR_COUNT;
+    return gap < 4 ? 4 : gap;
+}
+
+/* Circular marquee offset for a hold-then-scroll cycle. The cycle length is
+ * derived from the text width so the text always wraps back on itself. */
+static lv_coord_t detail_view_marquee_offset(uint32_t elapsed_ms, lv_coord_t text_w, const lv_font_t *font) {
+    int32_t travel = text_w + detail_view_marquee_gap(font);
+    if (travel <= 0) return 0;
+
+    int32_t cycle_ms = DV_MARQUEE_HOLD_MS + (travel * 1000) / DV_MARQUEE_SPEED_PX_S;
+    if (cycle_ms <= DV_MARQUEE_HOLD_MS) cycle_ms = DV_MARQUEE_HOLD_MS + 1;
+
+    int32_t phase = (int32_t)(elapsed_ms % (uint32_t)cycle_ms);
+    if (phase <= DV_MARQUEE_HOLD_MS) return 0;
+
+    int32_t off = ((phase - DV_MARQUEE_HOLD_MS) * DV_MARQUEE_SPEED_PX_S) / 1000;
+    if (off > travel) off = travel;
+    return (lv_coord_t)off;
+}
+
+static void detail_view_info_reset_metrics(detail_view_t *dv) {
+    if (!dv) return;
+    for (int i = 0; i < dv->info_count; i++) {
+        dv->info_items[i].label_w = -1;
+        dv->info_items[i].value_w = -1;
+        dv->info_items[i].label_off = 0;
+        dv->info_items[i].value_off = 0;
+    }
+    dv->info_marquee_active = false;
+    dv->info_marquee_start_ms = lv_tick_get();
+}
+
+/* The marquee timer parks itself once nothing overflows; any content or style
+ * change has to wake it back up so a fresh measurement can happen. */
+static void detail_view_info_marquee_kick(detail_view_t *dv) {
+    if (!dv || !dv->info_marquee_timer) return;
+    dv->info_marquee_start_ms = lv_tick_get();
+    lv_timer_reset(dv->info_marquee_timer);
+    lv_timer_resume(dv->info_marquee_timer);
+}
+
+static void detail_view_info_marquee_timer_cb(lv_timer_t *timer) {
+    detail_view_t *dv = (detail_view_t *)timer->user_data;
+    if (!dv || !dv->info_canvas || !lv_obj_is_valid(dv->info_canvas)) return;
+    if (dv->info_count <= 0) {
+        dv->info_marquee_active = false;
+        lv_timer_pause(timer);
+        return;
+    }
+
+    lv_area_t canvas_coords;
+    lv_obj_get_coords(dv->info_canvas, &canvas_coords);
+    if (lv_area_get_width(&canvas_coords) <= 0) return;
+
+    detail_info_geom_t geom;
+    detail_view_info_geom(dv, &canvas_coords, &geom);
+
+    lv_coord_t label_avail = geom.label_x2 - geom.label_x1 + 1;
+    lv_coord_t value_avail = geom.value_x2 - geom.value_x1 + 1;
+    lv_coord_t value_full_avail = geom.value_x2 - geom.value_full_x1 + 1;
+    const lv_font_t *label_font = get_item_font(dv);
+    const lv_font_t *value_font = get_value_font(dv);
+
+    uint32_t now = lv_tick_get();
+    uint32_t elapsed = now - dv->info_marquee_start_ms;
+
+    bool any = false;
+    bool changed = false;
+    for (int i = 0; i < dv->info_count; i++) {
+        detail_info_item_t *item = &dv->info_items[i];
+        if (label_avail <= 0 || value_avail <= 0) break;
+        if (item->label_w < 0) item->label_w = detail_view_info_measure(item->label, label_font);
+        if (item->value_w < 0) item->value_w = detail_view_info_measure(item->value, value_font);
+
+        bool full_width_value = (item->label == NULL || item->label[0] == '\0');
+        lv_coord_t v_avail = full_width_value ? value_full_avail : value_avail;
+        bool label_overflow = item->label_w > label_avail;
+        bool value_overflow = item->value_w > v_avail;
+        if (label_overflow || value_overflow) any = true;
+
+        lv_coord_t label_off = label_overflow ? detail_view_marquee_offset(elapsed, item->label_w, label_font) : 0;
+        lv_coord_t value_off = value_overflow ? detail_view_marquee_offset(elapsed, item->value_w, value_font) : 0;
+        if (label_off != item->label_off || value_off != item->value_off) {
+            item->label_off = label_off;
+            item->value_off = value_off;
+            changed = true;
+        }
+    }
+
+    bool was_active = dv->info_marquee_active;
+    if (any && !was_active) {
+        dv->info_marquee_start_ms = now;
+        changed = true;
+    }
+    dv->info_marquee_active = any;
+
+    if (changed || (was_active && !any)) {
+        lv_obj_invalidate(dv->info_canvas);
+    }
+    if (!any) lv_timer_pause(timer);
+}
+
 static void detail_view_info_draw_event(lv_event_t *e) {
     lv_obj_t *obj = lv_event_get_target(e);
     detail_view_t *dv = (detail_view_t *)lv_event_get_user_data(e);
@@ -418,10 +568,11 @@ static void detail_view_info_draw_event(lv_event_t *e) {
     value_dsc.opa = LV_OPA_COVER;
     value_dsc.flag = LV_TEXT_FLAG_EXPAND;
 
-    lv_coord_t row_h = get_info_row_height(dv);
-    lv_coord_t x_pad = dv->compact_layout ? 4 : 6;
-    lv_coord_t row_w = lv_area_get_width(&obj_coords);
-    lv_coord_t split_x = obj_coords.x1 + (row_w * (dv->compact_layout ? 34 : 40)) / 100;
+    detail_info_geom_t geom;
+    detail_view_info_geom(dv, &obj_coords, &geom);
+    lv_coord_t row_h = geom.row_h;
+    lv_coord_t label_gap = detail_view_marquee_gap(label_dsc.font);
+    lv_coord_t value_gap = detail_view_marquee_gap(value_dsc.font);
     bool zebra = settings_get_zebra_menus_enabled(&G_Settings);
 
     for (int i = 0; i < dv->info_count; i++) {
@@ -449,13 +600,10 @@ static void detail_view_info_draw_event(lv_event_t *e) {
         const char *value = dv->info_items[i].value ? dv->info_items[i].value : "";
         bool full_width_value = label[0] == '\0';
 
-        lv_coord_t label_x1 = obj_coords.x1 + x_pad;
-        lv_coord_t label_x2 = split_x - x_pad;
-        if (label_x2 < label_x1) label_x2 = label_x1;
-
-        lv_coord_t value_x1 = full_width_value ? obj_coords.x1 + x_pad : split_x + x_pad;
-        lv_coord_t value_x2 = obj_coords.x2 - x_pad;
-        if (value_x2 < value_x1) value_x2 = value_x1;
+        lv_coord_t label_x1 = geom.label_x1;
+        lv_coord_t label_x2 = geom.label_x2;
+        lv_coord_t value_x1 = full_width_value ? geom.value_full_x1 : geom.value_x1;
+        lv_coord_t value_x2 = geom.value_x2;
 
         lv_coord_t label_max_w = label_x2 - label_x1 + 1;
 
@@ -473,31 +621,49 @@ static void detail_view_info_draw_event(lv_event_t *e) {
         };
         lv_area_t label_clip;
         if (detail_area_intersect(&label_clip, &label_area, &visible_clip)) {
+            lv_coord_t label_full_w = detail_view_info_measure(label, label_dsc.font);
+            bool label_scroll = label_full_w > label_max_w;
+            lv_coord_t label_off = dv->info_items[i].label_off;
             old_clip = draw_ctx->clip_area;
             draw_ctx->clip_area = &label_clip;
+            label_dsc.ofs_x = -label_off;
             lv_draw_label(draw_ctx, &label_dsc, &label_area, label, NULL);
+            if (label_scroll) {
+                label_dsc.ofs_x = label_full_w + label_gap - label_off;
+                lv_draw_label(draw_ctx, &label_dsc, &label_area, label, NULL);
+            }
+            label_dsc.ofs_x = 0;
             draw_ctx->clip_area = old_clip;
         }
+
+        lv_coord_t value_avail = value_x2 - value_x1 + 1;
 
         lv_point_t value_size;
         lv_txt_get_size(&value_size, value, value_dsc.font, value_dsc.letter_space, value_dsc.line_space,
                         LV_COORD_MAX, value_dsc.flag);
-        lv_coord_t value_x = full_width_value ? value_x1 : value_x2 - value_size.x + 1;
-        if (value_x < value_x1) value_x = value_x1;
+        bool value_scroll = value_size.x > value_avail;
+        lv_coord_t value_align = (full_width_value || value_scroll) ? 0 : value_avail - value_size.x;
         lv_coord_t value_y = y1 + (row_h - value_size.y) / 2;
         if (value_y < y1) value_y = y1;
 
         lv_area_t value_area = {
-            .x1 = value_x,
+            .x1 = value_x1,
             .y1 = value_y,
             .x2 = value_x2,
             .y2 = y2
         };
         lv_area_t value_clip;
         if (detail_area_intersect(&value_clip, &value_area, &visible_clip)) {
+            lv_coord_t value_off = dv->info_items[i].value_off;
             old_clip = draw_ctx->clip_area;
             draw_ctx->clip_area = &value_clip;
+            value_dsc.ofs_x = value_align - value_off;
             lv_draw_label(draw_ctx, &value_dsc, &value_area, value, NULL);
+            if (value_scroll) {
+                value_dsc.ofs_x = value_align + value_size.x + value_gap - value_off;
+                lv_draw_label(draw_ctx, &value_dsc, &value_area, value, NULL);
+            }
+            value_dsc.ofs_x = 0;
             draw_ctx->clip_area = old_clip;
         }
     }
@@ -696,6 +862,8 @@ detail_view_t *detail_view_create(lv_obj_t *parent, const char *title) {
     lv_style_set_border_width(&dv->style_divider, 0);
     lv_style_set_radius(&dv->style_divider, dv->item_radius);
     
+    dv->info_marquee_timer = lv_timer_create(detail_view_info_marquee_timer_cb, DV_MARQUEE_PERIOD_MS, dv);
+
     display_manager_add_status_bar((title && title[0]) ? title : "Details");
     
     return dv;
@@ -703,6 +871,10 @@ detail_view_t *detail_view_create(lv_obj_t *parent, const char *title) {
 
 void detail_view_destroy(detail_view_t *dv) {
     if (!dv) return;
+    if (dv->info_marquee_timer) {
+        lv_timer_del(dv->info_marquee_timer);
+        dv->info_marquee_timer = NULL;
+    }
     detail_view_free_info_items(dv);
     free(dv->info_items);
     if (dv->container && lv_obj_is_valid(dv->container)) lv_obj_del(dv->container);
@@ -726,7 +898,13 @@ void detail_view_add_info(detail_view_t *dv, const char *label, const char *valu
         dv->info_items[info_idx].value = NULL;
         return;
     }
-    
+    dv->info_items[info_idx].label_w = -1;
+    dv->info_items[info_idx].value_w = -1;
+    dv->info_items[info_idx].label_off = 0;
+    dv->info_items[info_idx].value_off = 0;
+    dv->info_marquee_active = false;
+    detail_view_info_marquee_kick(dv);
+
     dv->rows[dv->count].obj = NULL;
     dv->rows[dv->count].type = DETAIL_ROW_INFO;
     dv->rows[dv->count].selectable = false;
@@ -1094,6 +1272,8 @@ void detail_view_clear(detail_view_t *dv) {
     dv->first_selectable = -1;
     dv->info_count = 0;
     detail_view_clear_wrap_pending(dv);
+    detail_view_info_reset_metrics(dv);
+    detail_view_info_marquee_kick(dv);
     detail_view_sync_info_canvas(dv);
 }
 
@@ -1162,6 +1342,8 @@ void detail_view_refresh_styles(detail_view_t *dv) {
     lv_style_set_bg_opa(&dv->style_divider, LV_OPA_20);
     lv_style_set_radius(&dv->style_divider, dv->item_radius);
 
+    detail_view_info_reset_metrics(dv);
+    detail_view_info_marquee_kick(dv);
     detail_view_sync_info_canvas(dv);
     
     int zebra_idx = 0;

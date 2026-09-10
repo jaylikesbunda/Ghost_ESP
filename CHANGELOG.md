@@ -52,6 +52,8 @@ Untagged entries are by ([@jaylikesbunda](https://github.com/jaylikesbunda)). A 
 - Fixed leaked LVGL async payloads when the display queue is busy
 - Fixed PCAP and wardriving CSV file handles leaking on restart
 - Fixed semaphore leaks in Chameleon and audio receiver init failures
+- Fixed Cloud Store install progress showing "0 KB downloaded" during the install phase
+- Fixed detail view info labels being cut off instead of scrolling sideways when too wide
 
 
 ## Revival v2.1.2

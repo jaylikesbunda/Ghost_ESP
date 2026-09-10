@@ -258,6 +258,7 @@ void progress_bar_view_set_progress(progress_bar_view_t *view, size_t current, s
         if (view->percent) {
             char buf[32];
             snprintf(buf, sizeof(buf), "%u KB downloaded", (unsigned)(current / 1024));
+            lv_obj_clear_flag(view->percent, LV_OBJ_FLAG_HIDDEN);
             lv_label_set_text(view->percent, buf);
         }
         return;
@@ -274,7 +275,20 @@ void progress_bar_view_set_progress(progress_bar_view_t *view, size_t current, s
     if (view->percent) {
         char buf[48];
         snprintf(buf, sizeof(buf), "%d%%  %u / %u KB", pct, (unsigned)(current / 1024), (unsigned)(total / 1024));
+        lv_obj_clear_flag(view->percent, LV_OBJ_FLAG_HIDDEN);
         lv_label_set_text(view->percent, buf);
+    }
+}
+
+// Working with nothing measurable to report (e.g. the install/extract phase
+// after a download finishes): slide the bar to show activity, but leave the
+// byte counter blank instead of pinning it at a meaningless "0 KB downloaded".
+void progress_bar_view_set_indeterminate(progress_bar_view_t *view) {
+    if (!view || !view->active) return;
+    progress_bar_start_indeterminate(view);
+    if (view->percent) {
+        lv_label_set_text(view->percent, "");
+        lv_obj_add_flag(view->percent, LV_OBJ_FLAG_HIDDEN);
     }
 }
 

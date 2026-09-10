@@ -687,13 +687,17 @@ static void status_timer_cb(lv_timer_t *timer) {
     if (s_progress && (status.state == CLOUD_STORE_STATE_DOWNLOADING || status.state == CLOUD_STORE_STATE_INSTALLING)) {
         bool downloading = (status.state == CLOUD_STORE_STATE_DOWNLOADING);
         progress_bar_view_update(s_progress, downloading ? "Downloading" : "Installing");
-        progress_bar_view_set_progress(s_progress, status.bytes_done, status.bytes_total);
         if (downloading) {
+            progress_bar_view_set_progress(s_progress, status.bytes_done, status.bytes_total);
             // Downloads are abortable; installs (flash write) are not.
             char sub[CLOUD_STORE_NAME_MAX + 24];
             snprintf(sub, sizeof(sub), "%s\n" LV_SYMBOL_LEFT " Back to cancel", status.active_name);
             progress_bar_view_set_subtext(s_progress, sub);
         } else {
+            // The install/extract phase reports no byte counters (the status
+            // carries 0/0), so animating the bar is all we can show -- without
+            // this it would render a bogus "0 KB downloaded" label.
+            progress_bar_view_set_indeterminate(s_progress);
             progress_bar_view_set_subtext(s_progress, status.active_name);
         }
     }
