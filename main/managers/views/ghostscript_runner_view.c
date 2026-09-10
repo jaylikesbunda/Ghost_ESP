@@ -1,5 +1,7 @@
 #include "managers/views/ghostscript_runner_view.h"
+#include "gui/accessibility_fonts.h"
 #include "gui/design_tokens.h"
+#include "gui/touch_bar.h"
 
 #include "core/glog.h"
 #include "gui/lvgl_safe.h"
@@ -38,6 +40,8 @@ static lv_obj_t *s_status;
 static lv_obj_t *s_output_scroll;
 static lv_obj_t *s_output;
 static lv_obj_t *s_touch_bar;
+static lv_obj_t *s_stop_btn;
+static gui_touch_bar_t s_touch_tb;
 static lv_timer_t *s_launch_timer;
 static TaskHandle_t s_script_task;
 static char *s_output_buf;
@@ -356,25 +360,15 @@ static void touch_stop_cb(lv_event_t *e) {
 }
 
 static void dispatch_touch_bar_press(const lv_indev_data_t *data) {
-    if (!data || !s_touch_bar || !lv_obj_is_valid(s_touch_bar)) return;
+    if (!data) return;
     int tx = data->point.x;
     int ty = data->point.y;
-    for (int i = 0; i < lv_obj_get_child_cnt(s_touch_bar); i++) {
-        lv_obj_t *btn = lv_obj_get_child(s_touch_bar, i);
-        if (!btn || !lv_obj_is_valid(btn)) continue;
-        lv_area_t a;
-        lv_obj_get_coords(btn, &a);
-        if (tx >= a.x1 && tx <= a.x2 && ty >= a.y1 && ty <= a.y2) {
-            const char *txt = NULL;
-            lv_obj_t *lbl = lv_obj_get_child(btn, 0);
-            if (lbl) txt = lv_label_get_text(lbl);
-            if (txt && strcmp(txt, LV_SYMBOL_UP) == 0) scroll_output_page(-1);
-            else if (txt && strcmp(txt, LV_SYMBOL_DOWN) == 0) scroll_output_page(1);
-            else if (txt && strstr(txt, "Back")) back_to_browser();
-            else if (txt && strstr(txt, "Stop")) stop_script();
-            return;
-        }
-    }
+    bool hit_up = false, hit_back = false, hit_down = false;
+    gui_touch_bar_hit_test(&s_touch_tb, tx, ty, &hit_up, &hit_back, &hit_down);
+    if (hit_up) { scroll_output_page(-1); return; }
+    if (hit_down) { scroll_output_page(1); return; }
+    if (hit_back) { back_to_browser(); return; }
+    if (gui_touch_bar_hit(s_stop_btn, tx, ty)) { stop_script(); return; }
 }
 
 void ghostscript_runner_set_script(const char *path) {
@@ -581,7 +575,6 @@ void ghostscript_runner_view_create(void) {
     s_follow_output = true;
     uint8_t theme = settings_get_menu_theme(&G_Settings);
     lv_color_t background = lv_color_hex(theme_palette_get_background(theme));
-    lv_color_t surface_alt = lv_color_hex(theme_palette_get_surface_alt(theme));
     lv_color_t text = lv_color_hex(theme_palette_get_text(theme));
     lv_color_t muted = lv_color_hex(theme_palette_get_text_muted(theme));
     s_root = gui_screen_create_root(NULL, "GhostScript", background, LV_OPA_COVER);
@@ -589,7 +582,10 @@ void ghostscript_runner_view_create(void) {
     display_manager_add_status_bar("GhostScript");
     lv_obj_t *content = gui_screen_create_content(s_root, GUI_STATUS_BAR_HEIGHT);
 #ifdef CONFIG_USE_TOUCHSCREEN
-    lv_coord_t content_h = LV_VER_RES - GUI_STATUS_BAR_HEIGHT - GS_RUNNER_TOUCH_BAR_HEIGHT;
+    /* Reserve the custom bar height only when the bar is actually shown;
+     * otherwise the content would leave a gap on large-screen targets. */
+    lv_coord_t content_h = LV_VER_RES - GUI_STATUS_BAR_HEIGHT -
+        (gui_touch_bar_should_show() ? GS_RUNNER_TOUCH_BAR_HEIGHT : 0);
     if (content_h < 32) content_h = 32;
     lv_obj_set_height(content, content_h);
 #endif
@@ -599,12 +595,12 @@ void ghostscript_runner_view_create(void) {
     snprintf(s_title_buf, GS_RUNNER_TITLE_BUF_SIZE, "Loading script...");
     lv_label_set_text(s_title, s_title_buf);
     lv_obj_set_style_text_color(s_title, text, 0);
-    lv_obj_set_style_text_font(s_title, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_font(s_title, accessibility_get_font_title(), 0);
     s_status = lv_label_create(content);
     snprintf(s_status_buf, GS_RUNNER_STATUS_BUF_SIZE, "Loading | autoscroll on");
     lv_label_set_text(s_status, s_status_buf);
     lv_obj_set_style_text_color(s_status, muted, 0);
-    lv_obj_set_style_text_font(s_status, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_font(s_status, accessibility_get_font_small(), 0);
     s_output_scroll = lv_obj_create(content);
     lv_obj_set_width(s_output_scroll, LV_PCT(100));
     lv_obj_set_flex_grow(s_output_scroll, 1);
@@ -619,78 +615,48 @@ void ghostscript_runner_view_create(void) {
     lv_label_set_long_mode(s_output, LV_LABEL_LONG_WRAP);
     lv_obj_set_width(s_output, LV_PCT(100));
     lv_obj_set_style_text_color(s_output, text, 0);
-    lv_obj_set_style_text_font(s_output, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_font(s_output, accessibility_get_font_small(), 0);
 #ifdef CONFIG_USE_TOUCHSCREEN
-#if GUI_LEGACY_TOUCH_BAR
-    s_touch_bar = lv_obj_create(s_root);
-    lv_obj_remove_style_all(s_touch_bar);
-    lv_obj_set_size(s_touch_bar, LV_HOR_RES, GS_RUNNER_TOUCH_BAR_HEIGHT);
-    lv_obj_align(s_touch_bar, LV_ALIGN_BOTTOM_MID, 0, 0);
-    lv_obj_set_style_bg_color(s_touch_bar, background, 0);
-    lv_obj_set_style_bg_opa(s_touch_bar, LV_OPA_COVER, 0);
-    lv_obj_clear_flag(s_touch_bar, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+    s_touch_tb = gui_touch_bar_create(s_root);
+    s_touch_bar = s_touch_tb.bar;
+    if (s_touch_bar && lv_obj_is_valid(s_touch_bar)) {
+        /* This view uses a taller custom bar (48px) to fit the extra Stop
+         * button; the helper bar is 34px, so grow it after creation. */
+        if (GS_RUNNER_TOUCH_BAR_HEIGHT != GUI_TOUCH_BAR_HEIGHT)
+            lv_obj_set_height(s_touch_bar, GS_RUNNER_TOUCH_BAR_HEIGHT);
+        /* Shift Back left to make room for Stop on the right half. */
+        if (s_touch_tb.back_btn && lv_obj_is_valid(s_touch_tb.back_btn))
+            lv_obj_align(s_touch_tb.back_btn, LV_ALIGN_CENTER, -34, 0);
+        gui_touch_bar_set_callbacks(&s_touch_tb,
+                                    touch_up_cb, NULL,
+                                    touch_back_cb, NULL,
+                                    touch_down_cb, NULL);
+        /* This view keeps the scroll arrows always visible (no overflow
+         * gating); the helper starts them hidden, so un-hide here. */
+        if (s_touch_tb.up_btn && lv_obj_is_valid(s_touch_tb.up_btn))
+            lv_obj_clear_flag(s_touch_tb.up_btn, LV_OBJ_FLAG_HIDDEN);
+        if (s_touch_tb.down_btn && lv_obj_is_valid(s_touch_tb.down_btn))
+            lv_obj_clear_flag(s_touch_tb.down_btn, LV_OBJ_FLAG_HIDDEN);
 
-    lv_color_t ctrl_color = surface_alt;
-    lv_color_t ctrl_text = text;
-    lv_obj_t *up_btn = lv_btn_create(s_touch_bar);
-    gui_apply_pressed_style(up_btn);
-    lv_obj_set_size(up_btn, GS_RUNNER_TOUCH_BTN_SIZE, GS_RUNNER_TOUCH_BTN_SIZE);
-    lv_obj_align(up_btn, LV_ALIGN_LEFT_MID, GS_RUNNER_TOUCH_BTN_PADDING, 0);
-    lv_obj_set_style_bg_color(up_btn, ctrl_color, LV_PART_MAIN);
-    lv_obj_set_style_radius(up_btn, LV_RADIUS_CIRCLE, LV_PART_MAIN);
-    lv_obj_set_style_border_width(up_btn, 0, LV_PART_MAIN);
-    lv_obj_set_style_shadow_width(up_btn, 0, LV_PART_MAIN);
-    lv_obj_add_event_cb(up_btn, touch_up_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *up_label = lv_label_create(up_btn);
-    lv_label_set_text(up_label, LV_SYMBOL_UP);
-    lv_obj_set_style_text_color(up_label, ctrl_text, 0);
-    lv_obj_center(up_label);
-
-    lv_obj_t *back_btn = lv_btn_create(s_touch_bar);
-    gui_apply_pressed_style(back_btn);
-    lv_obj_set_size(back_btn, GS_RUNNER_TOUCH_BTN_SIZE + 24, GS_RUNNER_TOUCH_BTN_SIZE);
-    lv_obj_align(back_btn, LV_ALIGN_CENTER, -34, 0);
-    lv_obj_set_style_bg_color(back_btn, ctrl_color, LV_PART_MAIN);
-    lv_obj_set_style_radius(back_btn, 5, LV_PART_MAIN);
-    lv_obj_set_style_pad_hor(back_btn, 8, LV_PART_MAIN);
-    lv_obj_set_style_border_width(back_btn, 0, LV_PART_MAIN);
-    lv_obj_set_style_shadow_width(back_btn, 0, LV_PART_MAIN);
-    lv_obj_add_event_cb(back_btn, touch_back_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *back_label = lv_label_create(back_btn);
-    lv_label_set_text(back_label, "Back");
-    lv_obj_set_style_text_color(back_label, ctrl_text, 0);
-    lv_obj_center(back_label);
-
-    lv_obj_t *stop_btn = lv_btn_create(s_touch_bar);
-    gui_apply_pressed_style(stop_btn);
-    lv_obj_set_size(stop_btn, GS_RUNNER_TOUCH_BTN_SIZE + 24, GS_RUNNER_TOUCH_BTN_SIZE);
-    lv_obj_align(stop_btn, LV_ALIGN_CENTER, 34, 0);
-    lv_obj_set_style_bg_color(stop_btn, lv_color_hex(theme_palette_get_danger(theme)), LV_PART_MAIN);
-    lv_obj_set_style_radius(stop_btn, 5, LV_PART_MAIN);
-    lv_obj_set_style_pad_hor(stop_btn, 8, LV_PART_MAIN);
-    lv_obj_set_style_border_width(stop_btn, 0, LV_PART_MAIN);
-    lv_obj_set_style_shadow_width(stop_btn, 0, LV_PART_MAIN);
-    lv_obj_add_event_cb(stop_btn, touch_stop_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *stop_label = lv_label_create(stop_btn);
-    lv_label_set_text(stop_label, "Stop");
-    lv_obj_set_style_text_color(stop_label,
-                                lv_color_hex(theme_palette_get_contrast_text(theme_palette_get_danger(theme))), 0);
-    lv_obj_center(stop_label);
-
-    lv_obj_t *down_btn = lv_btn_create(s_touch_bar);
-    gui_apply_pressed_style(down_btn);
-    lv_obj_set_size(down_btn, GS_RUNNER_TOUCH_BTN_SIZE, GS_RUNNER_TOUCH_BTN_SIZE);
-    lv_obj_align(down_btn, LV_ALIGN_RIGHT_MID, -GS_RUNNER_TOUCH_BTN_PADDING, 0);
-    lv_obj_set_style_bg_color(down_btn, ctrl_color, LV_PART_MAIN);
-    lv_obj_set_style_radius(down_btn, LV_RADIUS_CIRCLE, LV_PART_MAIN);
-    lv_obj_set_style_border_width(down_btn, 0, LV_PART_MAIN);
-    lv_obj_set_style_shadow_width(down_btn, 0, LV_PART_MAIN);
-    lv_obj_add_event_cb(down_btn, touch_down_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *down_label = lv_label_create(down_btn);
-    lv_label_set_text(down_label, LV_SYMBOL_DOWN);
-    lv_obj_set_style_text_color(down_label, ctrl_text, 0);
-    lv_obj_center(down_label);
-#endif /* GUI_LEGACY_TOUCH_BAR */
+        /* Extra custom danger button (kept out of the helper): centered +34,
+         * same styling as before. */
+        uint8_t stop_theme = settings_get_menu_theme(&G_Settings);
+        s_stop_btn = lv_btn_create(s_touch_bar);
+        gui_apply_pressed_style(s_stop_btn);
+        lv_obj_set_size(s_stop_btn, GS_RUNNER_TOUCH_BTN_SIZE + 24, GS_RUNNER_TOUCH_BTN_SIZE);
+        lv_obj_align(s_stop_btn, LV_ALIGN_CENTER, 34, 0);
+        lv_obj_set_style_bg_color(s_stop_btn, lv_color_hex(theme_palette_get_danger(stop_theme)), LV_PART_MAIN);
+        lv_obj_set_style_radius(s_stop_btn, 5, LV_PART_MAIN);
+        lv_obj_set_style_pad_hor(s_stop_btn, 8, LV_PART_MAIN);
+        lv_obj_set_style_border_width(s_stop_btn, 0, LV_PART_MAIN);
+        lv_obj_set_style_shadow_width(s_stop_btn, 0, LV_PART_MAIN);
+        lv_obj_add_event_cb(s_stop_btn, touch_stop_cb, LV_EVENT_CLICKED, NULL);
+        lv_obj_t *stop_label = lv_label_create(s_stop_btn);
+        lv_label_set_text(stop_label, "Stop");
+        lv_obj_set_style_text_color(stop_label,
+                                    lv_color_hex(theme_palette_get_contrast_text(theme_palette_get_danger(stop_theme))), 0);
+        lv_obj_center(stop_label);
+    }
 #endif
     toast_show_duration("Running GhostScript...", TOAST_INFO, 1000);
     s_launch_timer = lv_timer_create(launch_cb, 50, NULL);
@@ -718,7 +684,9 @@ void ghostscript_runner_view_destroy(void) {
         s_status = NULL;
         s_output_scroll = NULL;
         s_output = NULL;
+        gui_touch_bar_destroy(&s_touch_tb);
         s_touch_bar = NULL;
+        s_stop_btn = NULL;
         ghostscript_runner_view.root = NULL;
         xSemaphoreGive(s_lifecycle_mutex);
         return;
@@ -728,7 +696,9 @@ void ghostscript_runner_view_destroy(void) {
     s_status = NULL;
     s_output_scroll = NULL;
     s_output = NULL;
+    gui_touch_bar_destroy(&s_touch_tb);
     s_touch_bar = NULL;
+    s_stop_btn = NULL;
     s_touch_started = false;
     s_touch_scrolling = false;
     s_follow_output = true;

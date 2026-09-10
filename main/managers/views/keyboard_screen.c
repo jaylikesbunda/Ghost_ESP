@@ -937,8 +937,11 @@ static void keyboard_create() {
 }
 
 static void keyboard_destroy() {
+    /* Hoisted outside the root guard: a partially-constructed view must not
+     * leak timers when create() aborts early. */
+    lvgl_timer_del_safe(&keyboard_build_timer);
+    if (joy_hold_timer) { lv_timer_del(joy_hold_timer); joy_hold_timer = NULL; }
     if (keyboard_view.root) {
-        lvgl_timer_del_safe(&keyboard_build_timer);
         destroy_key_buttons();
         lvgl_obj_del_safe(&keyboard_view.root);
         root = NULL;
@@ -968,7 +971,6 @@ static void keyboard_destroy() {
         joy_holding_letter = false;
         joy_pending_letter  = false;
         joy_inverted_case   = false;
-        if (joy_hold_timer) { lv_timer_del(joy_hold_timer); joy_hold_timer = NULL; }
     }
 }
 

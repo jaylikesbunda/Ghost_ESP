@@ -2,6 +2,7 @@
 #include "gui/design_tokens.h"
 
 #include "gui/detail_view.h"
+#include "gui/touch_bar.h"
 #include "gui/lvgl_safe.h"
 #include "gui/options_view.h"
 #include "gui/screen_layout.h"
@@ -78,9 +79,7 @@ static const int TAP_THRESHOLD = 14;
 static const int SD_SWIPE_THRESHOLD_RATIO = 20;
 
 #ifdef CONFIG_USE_TOUCHSCREEN
-#define SD_SCROLL_BTN_SIZE 28
-#define SD_SCROLL_BTN_PADDING 3
-static lv_obj_t *sd_touch_bar = NULL;
+static gui_touch_bar_t s_sd_touch_tb = {0};
 static lv_obj_t *sd_scroll_up_btn = NULL;
 static lv_obj_t *sd_scroll_down_btn = NULL;
 static lv_obj_t *sd_back_btn = NULL;
@@ -138,27 +137,7 @@ static void sd_update_scroll_buttons_visibility(void) {
             lv_obj_add_flag(sd_scroll_down_btn, LV_OBJ_FLAG_HIDDEN);
         return;
     }
-    lv_obj_update_layout(target);
-    lv_coord_t sb = lv_obj_get_scroll_bottom(target);
-    lv_coord_t st = lv_obj_get_scroll_top(target);
-    bool needs_scroll = (sb > 0) || (st > 0);
-    if (needs_scroll) {
-        if (sd_scroll_up_btn && lv_obj_is_valid(sd_scroll_up_btn)) {
-            lv_obj_clear_flag(sd_scroll_up_btn, LV_OBJ_FLAG_HIDDEN);
-            lv_obj_move_foreground(sd_scroll_up_btn);
-        }
-        if (sd_scroll_down_btn && lv_obj_is_valid(sd_scroll_down_btn)) {
-            lv_obj_clear_flag(sd_scroll_down_btn, LV_OBJ_FLAG_HIDDEN);
-            lv_obj_move_foreground(sd_scroll_down_btn);
-        }
-        if (sd_back_btn && lv_obj_is_valid(sd_back_btn))
-            lv_obj_move_foreground(sd_back_btn);
-    } else {
-        if (sd_scroll_up_btn && lv_obj_is_valid(sd_scroll_up_btn))
-            lv_obj_add_flag(sd_scroll_up_btn, LV_OBJ_FLAG_HIDDEN);
-        if (sd_scroll_down_btn && lv_obj_is_valid(sd_scroll_down_btn))
-            lv_obj_add_flag(sd_scroll_down_btn, LV_OBJ_FLAG_HIDDEN);
-    }
+    gui_touch_bar_update_visibility(&s_sd_touch_tb, target);
 }
 
 static void sd_scroll_up_cb(lv_event_t *e) {
@@ -499,10 +478,7 @@ static void sd_browser_delete_cb(lv_event_t *e) {
     if (!browser_detail) return;
 
 #ifdef CONFIG_USE_TOUCHSCREEN
-#if GUI_LEGACY_TOUCH_BAR
-    const int TOUCH_BAR_HEIGHT = SD_SCROLL_BTN_SIZE + SD_SCROLL_BTN_PADDING * 2;
-    detail_view_set_bottom_reserved(browser_detail, TOUCH_BAR_HEIGHT);
-#endif
+    detail_view_set_bottom_reserved(browser_detail, gui_touch_bar_height());
 #endif
 
     detail_view_add_info(browser_detail, "Name", selected_entry->name);
@@ -625,10 +601,7 @@ static void sd_browser_view_contents_cb(lv_event_t *e) {
     if (!browser_detail) return;
 
 #ifdef CONFIG_USE_TOUCHSCREEN
-#if GUI_LEGACY_TOUCH_BAR
-    const int TOUCH_BAR_HEIGHT = SD_SCROLL_BTN_SIZE + SD_SCROLL_BTN_PADDING * 2;
-    detail_view_set_bottom_reserved(browser_detail, TOUCH_BAR_HEIGHT);
-#endif
+    detail_view_set_bottom_reserved(browser_detail, gui_touch_bar_height());
 #endif
 
     sd_browser_add_file_preview(browser_detail);
@@ -673,10 +646,7 @@ static void sd_browser_show_selected_file_detail(void) {
     if (!browser_detail) return;
 
 #ifdef CONFIG_USE_TOUCHSCREEN
-#if GUI_LEGACY_TOUCH_BAR
-    const int TOUCH_BAR_HEIGHT = SD_SCROLL_BTN_SIZE + SD_SCROLL_BTN_PADDING * 2;
-    detail_view_set_bottom_reserved(browser_detail, TOUCH_BAR_HEIGHT);
-#endif
+    detail_view_set_bottom_reserved(browser_detail, gui_touch_bar_height());
 #endif
 
     char folder[96];
@@ -796,12 +766,7 @@ static void sd_browser_show_list(void) {
 #ifdef CONFIG_USE_TOUCHSCREEN
     lv_obj_t *list = options_view_get_list(browser_options);
     if (list && lv_obj_is_valid(list)) {
-#if GUI_LEGACY_TOUCH_BAR
-        const int TOUCH_BAR_HEIGHT = SD_SCROLL_BTN_SIZE + SD_SCROLL_BTN_PADDING * 2;
-        int container_height = LV_VER_RES - GUI_STATUS_BAR_H - TOUCH_BAR_HEIGHT;
-#else
-        int container_height = LV_VER_RES - GUI_STATUS_BAR_H;
-#endif
+        int container_height = LV_VER_RES - GUI_STATUS_BAR_H - gui_touch_bar_height();
         lv_obj_set_size(list, GUI_OPTIONS_LIST_WIDTH, container_height);
         lv_obj_align(list, LV_ALIGN_TOP_MID, 0, GUI_STATUS_BAR_H);
     }
@@ -880,65 +845,16 @@ void sd_browser_create(void) {
     }
 
 #ifdef CONFIG_USE_TOUCHSCREEN
-#if GUI_LEGACY_TOUCH_BAR
-    const int TOUCH_BAR_HEIGHT = SD_SCROLL_BTN_SIZE + SD_SCROLL_BTN_PADDING * 2;
-    lv_color_t bg_color = lv_color_hex(theme_palette_get_background(theme));
-    lv_color_t ctrl_color = lv_color_hex(theme_palette_get_surface_alt(theme));
-    lv_color_t ctrl_text = lv_color_hex(theme_palette_get_text(theme));
-
-    sd_touch_bar = lv_obj_create(browser_root);
-    lv_obj_remove_style_all(sd_touch_bar);
-    lv_obj_set_size(sd_touch_bar, LV_HOR_RES, TOUCH_BAR_HEIGHT);
-    lv_obj_align(sd_touch_bar, LV_ALIGN_BOTTOM_MID, 0, 0);
-    lv_obj_set_style_bg_color(sd_touch_bar, bg_color, 0);
-    lv_obj_set_style_bg_opa(sd_touch_bar, LV_OPA_COVER, 0);
-    lv_obj_clear_flag(sd_touch_bar, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
-
-    sd_scroll_up_btn = lv_btn_create(sd_touch_bar);
-    gui_apply_pressed_style(sd_scroll_up_btn);
-    lv_obj_set_size(sd_scroll_up_btn, SD_SCROLL_BTN_SIZE, SD_SCROLL_BTN_SIZE);
-    lv_obj_align(sd_scroll_up_btn, LV_ALIGN_LEFT_MID, SD_SCROLL_BTN_PADDING, 0);
-    lv_obj_set_style_bg_color(sd_scroll_up_btn, ctrl_color, LV_PART_MAIN);
-    lv_obj_set_style_radius(sd_scroll_up_btn, LV_RADIUS_CIRCLE, LV_PART_MAIN);
-    lv_obj_set_style_border_width(sd_scroll_up_btn, 0, LV_PART_MAIN);
-    lv_obj_set_style_shadow_width(sd_scroll_up_btn, 0, LV_PART_MAIN);
-    lv_obj_add_event_cb(sd_scroll_up_btn, sd_scroll_up_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *up_label = lv_label_create(sd_scroll_up_btn);
-    lv_label_set_text(up_label, LV_SYMBOL_UP);
-    lv_obj_set_style_text_color(up_label, ctrl_text, 0);
-    lv_obj_center(up_label);
-    lv_obj_add_flag(sd_scroll_up_btn, LV_OBJ_FLAG_HIDDEN);
-
-    sd_back_btn = lv_btn_create(sd_touch_bar);
-    gui_apply_pressed_style(sd_back_btn);
-    lv_obj_set_size(sd_back_btn, SD_SCROLL_BTN_SIZE + 24, SD_SCROLL_BTN_SIZE);
-    lv_obj_align(sd_back_btn, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_set_style_bg_color(sd_back_btn, ctrl_color, LV_PART_MAIN);
-    lv_obj_set_style_radius(sd_back_btn, 5, LV_PART_MAIN);
-    lv_obj_set_style_pad_hor(sd_back_btn, 8, LV_PART_MAIN);
-    lv_obj_set_style_border_width(sd_back_btn, 0, LV_PART_MAIN);
-    lv_obj_set_style_shadow_width(sd_back_btn, 0, LV_PART_MAIN);
-    lv_obj_add_event_cb(sd_back_btn, sd_back_btn_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *back_label = lv_label_create(sd_back_btn);
-    lv_label_set_text(back_label, "Back");
-    lv_obj_set_style_text_color(back_label, ctrl_text, 0);
-    lv_obj_center(back_label);
-
-    sd_scroll_down_btn = lv_btn_create(sd_touch_bar);
-    gui_apply_pressed_style(sd_scroll_down_btn);
-    lv_obj_set_size(sd_scroll_down_btn, SD_SCROLL_BTN_SIZE, SD_SCROLL_BTN_SIZE);
-    lv_obj_align(sd_scroll_down_btn, LV_ALIGN_RIGHT_MID, -SD_SCROLL_BTN_PADDING, 0);
-    lv_obj_set_style_bg_color(sd_scroll_down_btn, ctrl_color, LV_PART_MAIN);
-    lv_obj_set_style_radius(sd_scroll_down_btn, LV_RADIUS_CIRCLE, LV_PART_MAIN);
-    lv_obj_set_style_border_width(sd_scroll_down_btn, 0, LV_PART_MAIN);
-    lv_obj_set_style_shadow_width(sd_scroll_down_btn, 0, LV_PART_MAIN);
-    lv_obj_add_event_cb(sd_scroll_down_btn, sd_scroll_down_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *down_label = lv_label_create(sd_scroll_down_btn);
-    lv_label_set_text(down_label, LV_SYMBOL_DOWN);
-    lv_obj_set_style_text_color(down_label, ctrl_text, 0);
-    lv_obj_center(down_label);
-    lv_obj_add_flag(sd_scroll_down_btn, LV_OBJ_FLAG_HIDDEN);
-#endif
+    s_sd_touch_tb = gui_touch_bar_create(browser_root);
+    sd_scroll_up_btn = s_sd_touch_tb.up_btn;
+    sd_back_btn = s_sd_touch_tb.back_btn;
+    sd_scroll_down_btn = s_sd_touch_tb.down_btn;
+    if (s_sd_touch_tb.bar != NULL) {
+        gui_touch_bar_set_callbacks(&s_sd_touch_tb,
+                                    sd_scroll_up_cb, NULL,
+                                    sd_back_btn_cb, NULL,
+                                    sd_scroll_down_cb, NULL);
+    }
 #endif
 
     page_offset = 0;
@@ -956,10 +872,10 @@ void sd_browser_destroy(void) {
         browser_options = NULL;
     }
 #ifdef CONFIG_USE_TOUCHSCREEN
+    gui_touch_bar_destroy(&s_sd_touch_tb);
     sd_scroll_up_btn = NULL;
     sd_scroll_down_btn = NULL;
     sd_back_btn = NULL;
-    sd_touch_bar = NULL;
 #endif
     if (browser_root) {
         lvgl_obj_del_safe(&browser_root);
@@ -1047,32 +963,20 @@ static void sd_browser_input_callback(InputEvent *event) {
         lv_indev_data_t *data = &event->data.touch_data;
         if (data->state == LV_INDEV_STATE_PR) {
 #ifdef CONFIG_USE_TOUCHSCREEN
-            if (sd_scroll_up_btn && lv_obj_is_valid(sd_scroll_up_btn)) {
-                lv_area_t area; lv_obj_get_coords(sd_scroll_up_btn, &area);
-                if (data->point.x >= area.x1 && data->point.x <= area.x2 &&
-                    data->point.y >= area.y1 && data->point.y <= area.y2) {
-                    sd_scroll_up_cb(NULL);
-                    sd_touch_started = false;
-                    return;
-                }
+            if (gui_touch_bar_hit(sd_scroll_up_btn, data->point.x, data->point.y)) {
+                sd_scroll_up_cb(NULL);
+                sd_touch_started = false;
+                return;
             }
-            if (sd_scroll_down_btn && lv_obj_is_valid(sd_scroll_down_btn)) {
-                lv_area_t area; lv_obj_get_coords(sd_scroll_down_btn, &area);
-                if (data->point.x >= area.x1 && data->point.x <= area.x2 &&
-                    data->point.y >= area.y1 && data->point.y <= area.y2) {
-                    sd_scroll_down_cb(NULL);
-                    sd_touch_started = false;
-                    return;
-                }
+            if (gui_touch_bar_hit(sd_scroll_down_btn, data->point.x, data->point.y)) {
+                sd_scroll_down_cb(NULL);
+                sd_touch_started = false;
+                return;
             }
-            if (sd_back_btn && lv_obj_is_valid(sd_back_btn)) {
-                lv_area_t area; lv_obj_get_coords(sd_back_btn, &area);
-                if (data->point.x >= area.x1 && data->point.x <= area.x2 &&
-                    data->point.y >= area.y1 && data->point.y <= area.y2) {
-                    sd_back_btn_cb(NULL);
-                    sd_touch_started = false;
-                    return;
-                }
+            if (gui_touch_bar_hit(sd_back_btn, data->point.x, data->point.y)) {
+                sd_back_btn_cb(NULL);
+                sd_touch_started = false;
+                return;
             }
 #endif
             if (!sd_touch_started) {

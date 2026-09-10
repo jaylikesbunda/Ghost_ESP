@@ -23,6 +23,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "gui/design_tokens.h"
+#include "gui/touch_bar.h"
 #include "sdkconfig.h"
 
 #ifdef CONFIG_WITH_SCREEN
@@ -122,9 +123,12 @@ static bool s_landscape_layout = false;
 #ifdef CONFIG_USE_TOUCHSCREEN
 // Standard bottom touch bar for the favorites overlay (scroll up / Back /
 // scroll down), matching the other options-style views.
+// Geometry now comes from gui/touch_bar.h; the LS_FAV_* defines below are
+// kept as aliases (same values).
 #define LS_FAV_SCROLL_BTN_SIZE 28
 #define LS_FAV_SCROLL_BTN_PADDING 3
 #define LS_FAV_TOUCH_BAR_HEIGHT (LS_FAV_SCROLL_BTN_SIZE + LS_FAV_SCROLL_BTN_PADDING * 2)
+static gui_touch_bar_t s_fav_tb;
 static lv_obj_t *s_fav_touch_bar = NULL;
 static lv_obj_t *s_fav_scroll_up_btn = NULL;
 static lv_obj_t *s_fav_scroll_down_btn = NULL;
@@ -875,25 +879,7 @@ static void lockscreen_fav_btn_cb(lv_event_t *e) {
 
 #ifdef CONFIG_USE_TOUCHSCREEN
 static void lockscreen_fav_update_scroll_buttons(void) {
-    if (!s_fav_list || !lv_obj_is_valid(s_fav_list)) return;
-    lv_obj_update_layout(s_fav_list);
-    bool needs_scroll = (lv_obj_get_scroll_bottom(s_fav_list) > 0) || (lv_obj_get_scroll_top(s_fav_list) > 0);
-    if (needs_scroll) {
-        if (s_fav_scroll_up_btn && lv_obj_is_valid(s_fav_scroll_up_btn)) {
-            lv_obj_clear_flag(s_fav_scroll_up_btn, LV_OBJ_FLAG_HIDDEN);
-            lv_obj_move_foreground(s_fav_scroll_up_btn);
-        }
-        if (s_fav_scroll_down_btn && lv_obj_is_valid(s_fav_scroll_down_btn)) {
-            lv_obj_clear_flag(s_fav_scroll_down_btn, LV_OBJ_FLAG_HIDDEN);
-            lv_obj_move_foreground(s_fav_scroll_down_btn);
-        }
-        if (s_fav_touch_back_btn && lv_obj_is_valid(s_fav_touch_back_btn)) {
-            lv_obj_move_foreground(s_fav_touch_back_btn);
-        }
-    } else {
-        if (s_fav_scroll_up_btn && lv_obj_is_valid(s_fav_scroll_up_btn)) lv_obj_add_flag(s_fav_scroll_up_btn, LV_OBJ_FLAG_HIDDEN);
-        if (s_fav_scroll_down_btn && lv_obj_is_valid(s_fav_scroll_down_btn)) lv_obj_add_flag(s_fav_scroll_down_btn, LV_OBJ_FLAG_HIDDEN);
-    }
+    gui_touch_bar_update_visibility(&s_fav_tb, s_fav_list);
 }
 
 static void lockscreen_fav_scroll_up(void) {
@@ -920,12 +906,10 @@ static void lockscreen_fav_scroll_down_cb(lv_event_t *e) {
     lockscreen_fav_scroll_down();
 }
 
-#if GUI_LEGACY_TOUCH_BAR
 static void lockscreen_fav_touch_back_cb(lv_event_t *e) {
     (void)e;
     lockscreen_hide_favorites();
 }
-#endif
 #endif
 
 static void lockscreen_show_favorites(void) {
@@ -941,11 +925,10 @@ static void lockscreen_show_favorites(void) {
 #ifdef CONFIG_CROWPANEL_ADVANCED_P4
     lv_color_t text = lv_color_hex(theme_palette_get_text(theme));
 #endif
-#ifdef CONFIG_USE_TOUCHSCREEN
-    const int touch_h = LS_FAV_TOUCH_BAR_HEIGHT;
-#else
-    const int touch_h = 0;
-#endif
+    // Reserve the touch bar height only when the bar is actually shown.
+    // gui_touch_bar_height() returns 0 on large-screen targets where the bar
+    // is hidden, so the list no longer leaves a 34px gap there.
+    const int touch_h = gui_touch_bar_height();
     // Overlay on lv_layer_top above lockscreen: one flat background color.
     s_fav_overlay = lv_obj_create(lv_layer_top());
     lv_obj_set_size(s_fav_overlay, LV_HOR_RES, LV_VER_RES - GUI_STATUS_BAR_H);
@@ -1118,66 +1101,19 @@ static void lockscreen_show_favorites(void) {
         lockscreen_fav_set_selected(0);
     }
 #ifdef CONFIG_USE_TOUCHSCREEN
-#if GUI_LEGACY_TOUCH_BAR
-    // Standard bottom touch bar (scroll up / Back / scroll down).
-    lv_color_t ctrl_color = lv_color_hex(theme_palette_get_surface_alt(theme));
-    lv_color_t ctrl_text = lv_color_hex(theme_palette_get_text(theme));
-
-    s_fav_touch_bar = lv_obj_create(s_fav_overlay);
-    lv_obj_remove_style_all(s_fav_touch_bar);
-    lv_obj_set_size(s_fav_touch_bar, LV_HOR_RES, touch_h);
-    lv_obj_align(s_fav_touch_bar, LV_ALIGN_BOTTOM_MID, 0, 0);
-    lv_obj_set_style_bg_color(s_fav_touch_bar, bg, 0);
-    lv_obj_set_style_bg_opa(s_fav_touch_bar, LV_OPA_COVER, 0);
-    lv_obj_clear_flag(s_fav_touch_bar, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
-
-    s_fav_scroll_up_btn = lv_btn_create(s_fav_touch_bar);
-    gui_apply_pressed_style(s_fav_scroll_up_btn);
-    lv_obj_set_size(s_fav_scroll_up_btn, LS_FAV_SCROLL_BTN_SIZE, LS_FAV_SCROLL_BTN_SIZE);
-    lv_obj_align(s_fav_scroll_up_btn, LV_ALIGN_LEFT_MID, LS_FAV_SCROLL_BTN_PADDING, 0);
-    lv_obj_set_style_bg_color(s_fav_scroll_up_btn, ctrl_color, LV_PART_MAIN);
-    lv_obj_set_style_radius(s_fav_scroll_up_btn, LV_RADIUS_CIRCLE, LV_PART_MAIN);
-    lv_obj_set_style_border_width(s_fav_scroll_up_btn, 0, LV_PART_MAIN);
-    lv_obj_set_style_shadow_width(s_fav_scroll_up_btn, 0, LV_PART_MAIN);
-    lv_obj_add_event_cb(s_fav_scroll_up_btn, lockscreen_fav_scroll_up_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *up_lbl = lv_label_create(s_fav_scroll_up_btn);
-    lv_label_set_text(up_lbl, LV_SYMBOL_UP);
-    lv_obj_set_style_text_color(up_lbl, ctrl_text, 0);
-    lv_obj_center(up_lbl);
-    lv_obj_add_flag(s_fav_scroll_up_btn, LV_OBJ_FLAG_HIDDEN);
-
-    s_fav_touch_back_btn = lv_btn_create(s_fav_touch_bar);
-    gui_apply_pressed_style(s_fav_touch_back_btn);
-    lv_obj_set_size(s_fav_touch_back_btn, LS_FAV_SCROLL_BTN_SIZE + 24, LS_FAV_SCROLL_BTN_SIZE);
-    lv_obj_align(s_fav_touch_back_btn, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_set_style_bg_color(s_fav_touch_back_btn, ctrl_color, LV_PART_MAIN);
-    lv_obj_set_style_radius(s_fav_touch_back_btn, 5, LV_PART_MAIN);
-    lv_obj_set_style_pad_hor(s_fav_touch_back_btn, 8, LV_PART_MAIN);
-    lv_obj_set_style_border_width(s_fav_touch_back_btn, 0, LV_PART_MAIN);
-    lv_obj_set_style_shadow_width(s_fav_touch_back_btn, 0, LV_PART_MAIN);
-    lv_obj_add_event_cb(s_fav_touch_back_btn, lockscreen_fav_touch_back_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *back_lbl = lv_label_create(s_fav_touch_back_btn);
-    lv_label_set_text(back_lbl, "Back");
-    lv_obj_set_style_text_color(back_lbl, ctrl_text, 0);
-    lv_obj_center(back_lbl);
-
-    s_fav_scroll_down_btn = lv_btn_create(s_fav_touch_bar);
-    gui_apply_pressed_style(s_fav_scroll_down_btn);
-    lv_obj_set_size(s_fav_scroll_down_btn, LS_FAV_SCROLL_BTN_SIZE, LS_FAV_SCROLL_BTN_SIZE);
-    lv_obj_align(s_fav_scroll_down_btn, LV_ALIGN_RIGHT_MID, -LS_FAV_SCROLL_BTN_PADDING, 0);
-    lv_obj_set_style_bg_color(s_fav_scroll_down_btn, ctrl_color, LV_PART_MAIN);
-    lv_obj_set_style_radius(s_fav_scroll_down_btn, LV_RADIUS_CIRCLE, LV_PART_MAIN);
-    lv_obj_set_style_border_width(s_fav_scroll_down_btn, 0, LV_PART_MAIN);
-    lv_obj_set_style_shadow_width(s_fav_scroll_down_btn, 0, LV_PART_MAIN);
-    lv_obj_add_event_cb(s_fav_scroll_down_btn, lockscreen_fav_scroll_down_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *down_lbl = lv_label_create(s_fav_scroll_down_btn);
-    lv_label_set_text(down_lbl, LV_SYMBOL_DOWN);
-    lv_obj_set_style_text_color(down_lbl, ctrl_text, 0);
-    lv_obj_center(down_lbl);
-    lv_obj_add_flag(s_fav_scroll_down_btn, LV_OBJ_FLAG_HIDDEN);
+    // Standard bottom touch bar (scroll up / Back / scroll down) via helper.
+    // Gating is handled inside gui_touch_bar_create().
+    s_fav_tb = gui_touch_bar_create(s_fav_overlay);
+    s_fav_touch_bar = s_fav_tb.bar;
+    s_fav_scroll_up_btn = s_fav_tb.up_btn;
+    s_fav_touch_back_btn = s_fav_tb.back_btn;
+    s_fav_scroll_down_btn = s_fav_tb.down_btn;
+    gui_touch_bar_set_callbacks(&s_fav_tb,
+                                lockscreen_fav_scroll_up_cb, NULL,
+                                lockscreen_fav_touch_back_cb, NULL,
+                                lockscreen_fav_scroll_down_cb, NULL);
 
     lockscreen_fav_update_scroll_buttons();
-#endif /* GUI_LEGACY_TOUCH_BAR */
 #endif
 }
 
@@ -1188,6 +1124,7 @@ static void lockscreen_hide_favorites(void) {
     s_fav_count = 0;
     s_fav_selected = 0;
 #ifdef CONFIG_USE_TOUCHSCREEN
+    gui_touch_bar_destroy(&s_fav_tb);
     s_fav_touch_bar = NULL;
     s_fav_scroll_up_btn = NULL;
     s_fav_scroll_down_btn = NULL;
@@ -1579,28 +1516,17 @@ static void lockscreen_input_handler(InputEvent *event) {
                 return;
             }
             if (td->state == LV_INDEV_STATE_PR) {
-                if (s_fav_scroll_up_btn && lv_obj_is_valid(s_fav_scroll_up_btn) &&
-                    !lv_obj_has_flag(s_fav_scroll_up_btn, LV_OBJ_FLAG_HIDDEN)) {
-                    lv_area_t a; lv_obj_get_coords(s_fav_scroll_up_btn, &a);
-                    if (td->point.x >= a.x1 && td->point.x <= a.x2 && td->point.y >= a.y1 && td->point.y <= a.y2) {
-                        lockscreen_fav_scroll_up();
-                        return;
-                    }
+                if (gui_touch_bar_hit(s_fav_scroll_up_btn, td->point.x, td->point.y)) {
+                    lockscreen_fav_scroll_up();
+                    return;
                 }
-                if (s_fav_scroll_down_btn && lv_obj_is_valid(s_fav_scroll_down_btn) &&
-                    !lv_obj_has_flag(s_fav_scroll_down_btn, LV_OBJ_FLAG_HIDDEN)) {
-                    lv_area_t a; lv_obj_get_coords(s_fav_scroll_down_btn, &a);
-                    if (td->point.x >= a.x1 && td->point.x <= a.x2 && td->point.y >= a.y1 && td->point.y <= a.y2) {
-                        lockscreen_fav_scroll_down();
-                        return;
-                    }
+                if (gui_touch_bar_hit(s_fav_scroll_down_btn, td->point.x, td->point.y)) {
+                    lockscreen_fav_scroll_down();
+                    return;
                 }
-                if (s_fav_touch_back_btn && lv_obj_is_valid(s_fav_touch_back_btn)) {
-                    lv_area_t a; lv_obj_get_coords(s_fav_touch_back_btn, &a);
-                    if (td->point.x >= a.x1 && td->point.x <= a.x2 && td->point.y >= a.y1 && td->point.y <= a.y2) {
-                        lockscreen_hide_favorites();
-                        return;
-                    }
+                if (gui_touch_bar_hit(s_fav_touch_back_btn, td->point.x, td->point.y)) {
+                    lockscreen_hide_favorites();
+                    return;
                 }
                 // Begin drag tracking when the press lands inside the list.
                 bool in_list = false;

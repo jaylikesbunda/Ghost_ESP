@@ -4,6 +4,7 @@
 #include "gui/screen_layout.h"
 #include "gui/design_tokens.h"
 #include "gui/lvgl_safe.h"
+#include "gui/view_input.h"
 #include "gui/theme_palette_api.h"
 #include "managers/settings_manager.h"
 #include "gui/accessibility_fonts.h"
@@ -559,6 +560,16 @@ static void compass_timer_cb(lv_timer_t *timer) {
 }
 
 static void compass_event_handler(InputEvent *event) {
+    if (view_input_wants_back(event)) {
+        display_manager_go_back();
+        return;
+    }
+#if defined(CONFIG_USE_ENCODER)
+    if (event->type == INPUT_TYPE_ENCODER && event->data.encoder.button) {
+        display_manager_go_back();
+        return;
+    }
+#endif
     if (event->type == INPUT_TYPE_TOUCH && event->data.touch_data.state == LV_INDEV_STATE_REL) {
         lv_indev_data_t *data = &event->data.touch_data;
         if (data->point.x <= 56 && data->point.y >= GUI_STATUS_BAR_HEIGHT &&
@@ -695,7 +706,7 @@ void compass_create(void) {
 }
 
 void compass_destroy(void) {
-    if (compass_timer) { lv_timer_del(compass_timer); compass_timer = NULL; }
+    lvgl_timer_del_safe(&compass_timer);
     if (s_compass_dev) {
         i2c_master_bus_rm_device(s_compass_dev);
         s_compass_dev = NULL;

@@ -48,6 +48,20 @@ lv_obj_t *gui_screen_create_root_no_bg(lv_obj_t *parent, const char *title, lv_c
 
 lv_obj_t *gui_screen_create_content(lv_obj_t *root, lv_coord_t status_bar_h);
 
+/* Same as gui_screen_create_content but reserves bottom space for the
+ * standard touch bar / footer / home indicator.
+ * content_h = LV_VER_RES - status_bar_h - bottom_reserved (clamped >= 0).
+ * Prefer this over hand-rolled `LV_VER_RES - GUI_STATUS_BAR_H` math so a
+ * touch-bar height change touches one file. */
+lv_obj_t *gui_screen_create_content_with_bottom_reserved(lv_obj_t *root,
+                                                         lv_coord_t status_bar_h,
+                                                         lv_coord_t bottom_reserved);
+
+/* Content height helper for list sizing without creating a container:
+ * returns LV_VER_RES - status_bar_h - bottom_reserved, clamped to >= 40
+ * (matches the 40px floor used by options-style views). */
+lv_coord_t gui_screen_content_height(lv_coord_t status_bar_h, lv_coord_t bottom_reserved);
+
 /* Drop the cached bg-widget state. Call after lv_obj_clean on a root. */
 void gui_screen_invalidate_bg_cache(void);
 

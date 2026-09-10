@@ -8,6 +8,7 @@
 #include "managers/views/error_popup.h"
 #include "gui/theme_palette_api.h"
 #include "gui/options_view.h"
+#include "gui/touch_bar.h"
 #include "gui/ios_toggle.h"
 #include "managers/status_display_manager.h"
 #include "managers/ghostchi_manager.h"
@@ -389,7 +390,7 @@ void learned_signal_name_callback(const char *name)
                 options_view_add_item(g_ir_ov, "Rename Remote", rename_remote_cb, NULL);
                 options_view_add_item(g_ir_ov, "Add Signal", add_signal_cb, NULL);
                 lv_obj_t *delete_btn = options_view_add_item(g_ir_ov, "Delete Remote", delete_remote_cb, NULL);
-                if (delete_btn) lv_obj_set_style_bg_color(delete_btn, lv_color_hex(0x8B0000), LV_PART_MAIN | LV_STATE_DEFAULT);
+                if (delete_btn) lv_obj_set_style_bg_color(delete_btn, lv_color_hex(theme_palette_get_danger(settings_get_menu_theme(&G_Settings))), LV_PART_MAIN | LV_STATE_DEFAULT);
                 
 #if defined(CONFIG_USE_ENCODER) || defined(CONFIG_USE_JOYSTICK) || defined(CONFIG_USE_ATOMS3R_BUTTON)
                 ir_add_back_row();
@@ -508,8 +509,7 @@ static void ir_select_item(int index);
 
 // touchscreen controls
 #ifdef CONFIG_USE_TOUCHSCREEN
-#define IR_SCROLL_BTN_SIZE 28
-#define IR_SCROLL_BTN_PADDING 3
+static gui_touch_bar_t s_ir_touch_tb = {0};
 static lv_obj_t *ir_scroll_up_btn = NULL;
 static lv_obj_t *ir_scroll_down_btn = NULL;
 static lv_obj_t *ir_back_btn = NULL;
@@ -1399,12 +1399,7 @@ void infrared_view_create(void) {
 
 #ifdef CONFIG_USE_TOUCHSCREEN
     const int STATUS_BAR_HEIGHT = GUI_STATUS_BAR_HEIGHT;
-#if GUI_LEGACY_TOUCH_BAR
-    const int TOUCH_BAR_HEIGHT = IR_SCROLL_BTN_SIZE + IR_SCROLL_BTN_PADDING * 2;
-#else
-    const int TOUCH_BAR_HEIGHT = 0;
-#endif
-    int list_h = LV_VER_RES - STATUS_BAR_HEIGHT - TOUCH_BAR_HEIGHT;
+    int list_h = LV_VER_RES - STATUS_BAR_HEIGHT - gui_touch_bar_height();
     lv_obj_set_size(list, GUI_OPTIONS_LIST_WIDTH, list_h);
     lv_obj_align(list, LV_ALIGN_TOP_MID, 0, STATUS_BAR_HEIGHT);
 #endif
@@ -1484,7 +1479,7 @@ void infrared_view_create(void) {
                 options_view_add_item(g_ir_ov, "Rename Remote", rename_remote_cb, NULL);
                 options_view_add_item(g_ir_ov, "Add New Signal", add_signal_cb, NULL);
                 lv_obj_t *delete_btn = options_view_add_item(g_ir_ov, "Delete Remote", delete_remote_cb, NULL);
-                if (delete_btn) lv_obj_set_style_bg_color(delete_btn, lv_color_hex(0x8B0000), LV_PART_MAIN | LV_STATE_DEFAULT);
+                if (delete_btn) lv_obj_set_style_bg_color(delete_btn, lv_color_hex(theme_palette_get_danger(settings_get_menu_theme(&G_Settings))), LV_PART_MAIN | LV_STATE_DEFAULT);
 
                 num_ir_items = options_view_get_item_count(g_ir_ov);
 
@@ -1498,73 +1493,19 @@ void infrared_view_create(void) {
     }
 
 #ifdef CONFIG_USE_TOUCHSCREEN
-#if GUI_LEGACY_TOUCH_BAR
-    uint8_t ir_theme = settings_get_menu_theme(&G_Settings);
-    lv_color_t ir_bg = lv_color_hex(theme_palette_get_background(ir_theme));
-    lv_color_t ir_ctrl = lv_color_hex(theme_palette_get_surface_alt(ir_theme));
-    lv_color_t ir_ctrl_text = lv_color_hex(theme_palette_get_text(ir_theme));
-
-    lv_obj_t *ir_touch_bar = lv_obj_create(root);
-    lv_obj_remove_style_all(ir_touch_bar);
-    lv_obj_set_size(ir_touch_bar, LV_HOR_RES, IR_SCROLL_BTN_SIZE + IR_SCROLL_BTN_PADDING * 2);
-    lv_obj_align(ir_touch_bar, LV_ALIGN_BOTTOM_MID, 0, 0);
-    lv_obj_set_style_bg_color(ir_touch_bar, ir_bg, 0);
-    lv_obj_set_style_bg_opa(ir_touch_bar, LV_OPA_COVER, 0);
-    lv_obj_clear_flag(ir_touch_bar, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
-
-    ir_scroll_up_btn = lv_btn_create(ir_touch_bar);
-    gui_apply_pressed_style(ir_scroll_up_btn);
-    lv_obj_set_size(ir_scroll_up_btn, IR_SCROLL_BTN_SIZE, IR_SCROLL_BTN_SIZE);
-    lv_obj_align(ir_scroll_up_btn, LV_ALIGN_LEFT_MID, IR_SCROLL_BTN_PADDING, 0);
-    lv_obj_set_style_bg_color(ir_scroll_up_btn, ir_ctrl, LV_PART_MAIN);
-    lv_obj_set_style_radius(ir_scroll_up_btn, LV_RADIUS_CIRCLE, LV_PART_MAIN);
-    lv_obj_set_style_border_width(ir_scroll_up_btn, 0, LV_PART_MAIN);
-    lv_obj_set_style_shadow_width(ir_scroll_up_btn, 0, LV_PART_MAIN);
-    lv_obj_add_event_cb(ir_scroll_up_btn, file_scroll_up_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *up_label = lv_label_create(ir_scroll_up_btn);
-    lv_label_set_text(up_label, LV_SYMBOL_UP);
-    lv_obj_set_style_text_color(up_label, ir_ctrl_text, 0);
-    lv_obj_center(up_label);
-    lv_obj_add_flag(ir_scroll_up_btn, LV_OBJ_FLAG_HIDDEN);
-
-    ir_back_btn = lv_btn_create(ir_touch_bar);
-    gui_apply_pressed_style(ir_back_btn);
-    lv_obj_set_size(ir_back_btn, IR_SCROLL_BTN_SIZE + 24, IR_SCROLL_BTN_SIZE);
-    lv_obj_align(ir_back_btn, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_set_style_bg_color(ir_back_btn, ir_ctrl, LV_PART_MAIN);
-    lv_obj_set_style_radius(ir_back_btn, 5, LV_PART_MAIN);
-    lv_obj_set_style_pad_hor(ir_back_btn, 8, LV_PART_MAIN);
-    lv_obj_set_style_border_width(ir_back_btn, 0, LV_PART_MAIN);
-    lv_obj_set_style_shadow_width(ir_back_btn, 0, LV_PART_MAIN);
-    lv_obj_add_event_cb(ir_back_btn, back_event_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *back_label = lv_label_create(ir_back_btn);
-    lv_label_set_text(back_label, "Back");
-    lv_obj_set_style_text_color(back_label, ir_ctrl_text, 0);
-    lv_obj_center(back_label);
-
-    ir_scroll_down_btn = lv_btn_create(ir_touch_bar);
-    gui_apply_pressed_style(ir_scroll_down_btn);
-    lv_obj_set_size(ir_scroll_down_btn, IR_SCROLL_BTN_SIZE, IR_SCROLL_BTN_SIZE);
-    lv_obj_align(ir_scroll_down_btn, LV_ALIGN_RIGHT_MID, -IR_SCROLL_BTN_PADDING, 0);
-    lv_obj_set_style_bg_color(ir_scroll_down_btn, ir_ctrl, LV_PART_MAIN);
-    lv_obj_set_style_radius(ir_scroll_down_btn, LV_RADIUS_CIRCLE, LV_PART_MAIN);
-    lv_obj_set_style_border_width(ir_scroll_down_btn, 0, LV_PART_MAIN);
-    lv_obj_set_style_shadow_width(ir_scroll_down_btn, 0, LV_PART_MAIN);
-    lv_obj_add_event_cb(ir_scroll_down_btn, file_scroll_down_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *down_label = lv_label_create(ir_scroll_down_btn);
-    lv_label_set_text(down_label, LV_SYMBOL_DOWN);
-    lv_obj_set_style_text_color(down_label, ir_ctrl_text, 0);
-    lv_obj_center(down_label);
-    lv_obj_add_flag(ir_scroll_down_btn, LV_OBJ_FLAG_HIDDEN);
-#endif /* GUI_LEGACY_TOUCH_BAR */
+    s_ir_touch_tb = gui_touch_bar_create(root);
+    ir_scroll_up_btn = s_ir_touch_tb.up_btn;
+    ir_back_btn = s_ir_touch_tb.back_btn;
+    ir_scroll_down_btn = s_ir_touch_tb.down_btn;
+    if (s_ir_touch_tb.bar != NULL) {
+        gui_touch_bar_set_callbacks(&s_ir_touch_tb,
+                                    file_scroll_up_cb, NULL,
+                                    back_event_cb, NULL,
+                                    file_scroll_down_cb, NULL);
+    }
 
     if (list && lv_obj_is_valid(list)) {
-        lv_coord_t scroll_bottom = lv_obj_get_scroll_bottom(list);
-        lv_coord_t scroll_top = lv_obj_get_scroll_top(list);
-        if (scroll_bottom > 0 || scroll_top > 0) {
-            if (ir_scroll_up_btn && lv_obj_is_valid(ir_scroll_up_btn)) lv_obj_clear_flag(ir_scroll_up_btn, LV_OBJ_FLAG_HIDDEN);
-            if (ir_scroll_down_btn && lv_obj_is_valid(ir_scroll_down_btn)) lv_obj_clear_flag(ir_scroll_down_btn, LV_OBJ_FLAG_HIDDEN);
-        }
+        gui_touch_bar_update_visibility(&s_ir_touch_tb, list);
     }
 #endif
 
@@ -1643,6 +1584,12 @@ void infrared_view_destroy(void) {
          * it when returning rather than always resetting to the top. */
         num_ir_items = 0;
     }
+#ifdef CONFIG_USE_TOUCHSCREEN
+    gui_touch_bar_destroy(&s_ir_touch_tb);
+    ir_scroll_up_btn = NULL;
+    ir_scroll_down_btn = NULL;
+    ir_back_btn = NULL;
+#endif
 }
 
 static void ir_select_item(int index) {
@@ -1658,11 +1605,11 @@ static void ir_select_item(int index) {
         lv_obj_t *del = lv_obj_get_child(list, del_idx);
         if (del) {
             if (index == del_idx) {
-                lv_obj_set_style_bg_color(del, lv_color_hex(0xB22222), LV_PART_MAIN);
+                lv_obj_set_style_bg_color(del, lv_color_hex(theme_palette_get_danger(settings_get_menu_theme(&G_Settings))), LV_PART_MAIN);
                 lv_obj_t *lbl = lv_obj_get_child(del, 0);
                 if (lbl) lv_obj_set_style_text_color(lbl, lv_color_hex(0xFFFFFF), 0);
             } else {
-                lv_obj_set_style_bg_color(del, lv_color_hex(0x8B0000), LV_PART_MAIN);
+                lv_obj_set_style_bg_color(del, lv_color_hex(theme_palette_get_danger(settings_get_menu_theme(&G_Settings))), LV_PART_MAIN);
                 lv_obj_t *lbl = lv_obj_get_child(del, 0);
                 if (lbl) lv_obj_set_style_text_color(lbl, lv_color_hex(0xFFFFFF), 0);
             }
@@ -1942,37 +1889,22 @@ void infrared_view_input_cb(InputEvent *event) {
         
         if (data->state == LV_INDEV_STATE_PR) {
 #ifdef CONFIG_USE_TOUCHSCREEN
-            if (ir_scroll_up_btn && lv_obj_is_valid(ir_scroll_up_btn)) {
-                lv_area_t area;
-                lv_obj_get_coords(ir_scroll_up_btn, &area);
-                if (data->point.x >= area.x1 && data->point.x <= area.x2 &&
-                    data->point.y >= area.y1 && data->point.y <= area.y2) {
-                    ir_select_item(selected_ir_index - 1);
-                    touch_drag_reset(&ir_touch_drag);
-                    return;
-                }
+            if (gui_touch_bar_hit(ir_scroll_up_btn, data->point.x, data->point.y)) {
+                ir_select_item(selected_ir_index - 1);
+                touch_drag_reset(&ir_touch_drag);
+                return;
             }
 
-            if (ir_scroll_down_btn && lv_obj_is_valid(ir_scroll_down_btn)) {
-                lv_area_t area;
-                lv_obj_get_coords(ir_scroll_down_btn, &area);
-                if (data->point.x >= area.x1 && data->point.x <= area.x2 &&
-                    data->point.y >= area.y1 && data->point.y <= area.y2) {
-                    ir_select_item(selected_ir_index + 1);
-                    touch_drag_reset(&ir_touch_drag);
-                    return;
-                }
+            if (gui_touch_bar_hit(ir_scroll_down_btn, data->point.x, data->point.y)) {
+                ir_select_item(selected_ir_index + 1);
+                touch_drag_reset(&ir_touch_drag);
+                return;
             }
 
-            if (ir_back_btn && lv_obj_is_valid(ir_back_btn)) {
-                lv_area_t area;
-                lv_obj_get_coords(ir_back_btn, &area);
-                if (data->point.x >= area.x1 && data->point.x <= area.x2 &&
-                    data->point.y >= area.y1 && data->point.y <= area.y2) {
-                    back_event_cb(NULL);
-                    touch_drag_reset(&ir_touch_drag);
-                    return;
-                }
+            if (gui_touch_bar_hit(ir_back_btn, data->point.x, data->point.y)) {
+                back_event_cb(NULL);
+                touch_drag_reset(&ir_touch_drag);
+                return;
             }
 #endif
 
@@ -2495,7 +2427,7 @@ static void ir_open_remote_path(const char *full_path, const char *fname) {
     options_view_add_item(g_ir_ov, "Rename Remote", rename_remote_cb, NULL);
     options_view_add_item(g_ir_ov, "Add New Signal", add_signal_cb, NULL);
     lv_obj_t *delete_btn = options_view_add_item(g_ir_ov, "Delete Remote", delete_remote_cb, NULL);
-    if (delete_btn) lv_obj_set_style_bg_color(delete_btn, lv_color_hex(0x8B0000), LV_PART_MAIN | LV_STATE_DEFAULT);
+    if (delete_btn) lv_obj_set_style_bg_color(delete_btn, lv_color_hex(theme_palette_get_danger(settings_get_menu_theme(&G_Settings))), LV_PART_MAIN | LV_STATE_DEFAULT);
 
     num_ir_items = options_view_get_item_count(g_ir_ov);
 
@@ -3016,7 +2948,7 @@ void easy_learn_signal_name_callback(void)
             options_view_add_item(g_ir_ov, "Rename Remote", rename_remote_cb, NULL);
             options_view_add_item(g_ir_ov, "Add Signal", add_signal_cb, NULL);
             lv_obj_t *delete_btn = options_view_add_item(g_ir_ov, "Delete Remote", delete_remote_cb, NULL);
-            if (delete_btn) lv_obj_set_style_bg_color(delete_btn, lv_color_hex(0x8B0000), LV_PART_MAIN | LV_STATE_DEFAULT);
+            if (delete_btn) lv_obj_set_style_bg_color(delete_btn, lv_color_hex(theme_palette_get_danger(settings_get_menu_theme(&G_Settings))), LV_PART_MAIN | LV_STATE_DEFAULT);
             
 #if defined(CONFIG_USE_ENCODER) || defined(CONFIG_USE_JOYSTICK) || defined(CONFIG_USE_ATOMS3R_BUTTON)
             ir_add_back_row();
@@ -3129,8 +3061,8 @@ void update_signal_preview_selection(void)
         }
         
         // Cancel unselected - dark background, white text
-        lv_obj_set_style_bg_color(cancel_btn, lv_color_hex(0x444444), LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_border_color(cancel_btn, lv_color_hex(0x666666), LV_PART_MAIN | LV_STATE_DEFAULT);
+        lv_obj_set_style_bg_color(cancel_btn, lv_color_hex(theme_palette_get_surface_alt(settings_get_menu_theme(&G_Settings))), LV_PART_MAIN | LV_STATE_DEFAULT);
+        lv_obj_set_style_border_color(cancel_btn, lv_color_hex(theme_palette_get_border(settings_get_menu_theme(&G_Settings))), LV_PART_MAIN | LV_STATE_DEFAULT);
         lv_obj_t *cancel_label = lv_obj_get_child(cancel_btn, 0);
         if (cancel_label) lv_obj_set_style_text_color(cancel_label, lv_color_hex(0xFFFFFF), 0);
     } else {
@@ -3144,8 +3076,8 @@ void update_signal_preview_selection(void)
         }
         
         // Save unselected - dark background, white text
-        lv_obj_set_style_bg_color(save_btn, lv_color_hex(0x444444), LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_border_color(save_btn, lv_color_hex(0x666666), LV_PART_MAIN | LV_STATE_DEFAULT);
+        lv_obj_set_style_bg_color(save_btn, lv_color_hex(theme_palette_get_surface_alt(settings_get_menu_theme(&G_Settings))), LV_PART_MAIN | LV_STATE_DEFAULT);
+        lv_obj_set_style_border_color(save_btn, lv_color_hex(theme_palette_get_border(settings_get_menu_theme(&G_Settings))), LV_PART_MAIN | LV_STATE_DEFAULT);
         lv_obj_t *save_label = lv_obj_get_child(save_btn, 0);
         if (save_label) lv_obj_set_style_text_color(save_label, lv_color_hex(0xFFFFFF), 0);
     }
@@ -3168,8 +3100,8 @@ void update_learning_popup_selection(void)
         }
     } else {
         // Cancel unselected - dark background, white text
-        lv_obj_set_style_bg_color(learning_cancel_btn, lv_color_hex(0x444444), LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_border_color(learning_cancel_btn, lv_color_hex(0x666666), LV_PART_MAIN | LV_STATE_DEFAULT);
+        lv_obj_set_style_bg_color(learning_cancel_btn, lv_color_hex(theme_palette_get_surface_alt(settings_get_menu_theme(&G_Settings))), LV_PART_MAIN | LV_STATE_DEFAULT);
+        lv_obj_set_style_border_color(learning_cancel_btn, lv_color_hex(theme_palette_get_border(settings_get_menu_theme(&G_Settings))), LV_PART_MAIN | LV_STATE_DEFAULT);
         lv_obj_t *cancel_label = lv_obj_get_child(learning_cancel_btn, 0);
         if (cancel_label) lv_obj_set_style_text_color(cancel_label, lv_color_hex(0xFFFFFF), 0);
     }
@@ -3194,8 +3126,8 @@ void update_easy_learn_popup_selection(void)
         }
     } else {
         // Cancel unselected - dark background, white text
-        lv_obj_set_style_bg_color(easy_learn_cancel_btn, lv_color_hex(0x555555), LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_border_color(easy_learn_cancel_btn, lv_color_hex(0x666666), LV_PART_MAIN | LV_STATE_DEFAULT);
+        lv_obj_set_style_bg_color(easy_learn_cancel_btn, lv_color_hex(theme_palette_get_surface_alt(settings_get_menu_theme(&G_Settings))), LV_PART_MAIN | LV_STATE_DEFAULT);
+        lv_obj_set_style_border_color(easy_learn_cancel_btn, lv_color_hex(theme_palette_get_border(settings_get_menu_theme(&G_Settings))), LV_PART_MAIN | LV_STATE_DEFAULT);
         lv_obj_t *cancel_label = lv_obj_get_child(easy_learn_cancel_btn, 0);
         if (cancel_label) lv_obj_set_style_text_color(cancel_label, lv_color_hex(0xFFFFFF), 0);
     }
@@ -3214,8 +3146,8 @@ void update_easy_learn_popup_selection(void)
         }
     } else {
         // Skip unselected - dark background, white text
-        lv_obj_set_style_bg_color(easy_learn_skip_btn, lv_color_hex(0x555555), LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_border_color(easy_learn_skip_btn, lv_color_hex(0x666666), LV_PART_MAIN | LV_STATE_DEFAULT);
+        lv_obj_set_style_bg_color(easy_learn_skip_btn, lv_color_hex(theme_palette_get_surface_alt(settings_get_menu_theme(&G_Settings))), LV_PART_MAIN | LV_STATE_DEFAULT);
+        lv_obj_set_style_border_color(easy_learn_skip_btn, lv_color_hex(theme_palette_get_border(settings_get_menu_theme(&G_Settings))), LV_PART_MAIN | LV_STATE_DEFAULT);
         lv_obj_t *skip_label = lv_obj_get_child(easy_learn_skip_btn, 0);
         if (skip_label) lv_obj_set_style_text_color(skip_label, lv_color_hex(0xFFFFFF), 0);
     }

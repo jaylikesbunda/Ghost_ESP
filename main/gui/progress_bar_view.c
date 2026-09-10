@@ -2,6 +2,7 @@
 
 #include "gui/accessibility_fonts.h"
 #include "gui/design_tokens.h"
+#include "gui/touch_bar.h"
 #include "gui/theme_palette_api.h"
 #include "managers/display_manager.h"
 #include "managers/settings_manager.h"
@@ -25,6 +26,7 @@ struct progress_bar_view_t {
     lv_obj_t *percent;
     lv_obj_t *subtext;
     lv_obj_t *touch_bar;
+    gui_touch_bar_t tb;
     void (*on_cancel)(void *);
     void *cancel_user_data;
     bool active;
@@ -39,6 +41,8 @@ static const lv_font_t *progress_body_font(void) {
     return LV_VER_RES <= 135 ? accessibility_get_font_small() : accessibility_get_font_body();
 }
 
+/* Geometry alias: canonical value now lives in gui/touch_bar.h
+ * (GUI_TOUCH_BAR_HEIGHT, same 34px). */
 #define PROGRESS_TOUCH_BAR_H 34
 
 static void progress_cancel_btn_cb(lv_event_t *e) {
@@ -153,43 +157,19 @@ progress_bar_view_t *progress_bar_view_create_with_cancel(const char *title, voi
     view->cancel_user_data = user_data;
     view->touch_bar = NULL;
 
-#if defined(CONFIG_USE_TOUCHSCREEN) && GUI_LEGACY_TOUCH_BAR
-    {
-#else
-    if (0) {
-#endif
-        uint8_t theme = settings_get_menu_theme(&G_Settings);
-        lv_color_t bg_color = lv_color_hex(theme_palette_get_background(theme));
-        lv_color_t ctrl_color = lv_color_hex(theme_palette_get_surface_alt(theme));
-        lv_color_t ctrl_text = lv_color_hex(theme_palette_get_text(theme));
-
+    /* Back-only touch bar via helper (arrows permanently hidden).
+     * Created even when on_cancel is NULL — an empty bar, same as before —
+     * just with no callback attached. Gating is handled inside
+     * gui_touch_bar_create(), so no touchscreen ifdefs are needed here. */
+    view->tb = gui_touch_bar_create(view->container);
+    view->touch_bar = view->tb.bar;
+    if (view->touch_bar && lv_obj_is_valid(view->touch_bar)) {
         // Shrink the card to leave room for the touch bar
-        lv_obj_set_height(view->card, card_h - PROGRESS_TOUCH_BAR_H);
-
-        view->touch_bar = lv_obj_create(view->container);
-        lv_obj_remove_style_all(view->touch_bar);
-        lv_obj_set_size(view->touch_bar, LV_HOR_RES, PROGRESS_TOUCH_BAR_H);
-        lv_obj_align(view->touch_bar, LV_ALIGN_BOTTOM_MID, 0, 0);
-        lv_obj_set_style_bg_color(view->touch_bar, bg_color, 0);
-        lv_obj_set_style_bg_opa(view->touch_bar, LV_OPA_COVER, 0);
-        lv_obj_clear_flag(view->touch_bar, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
-
-        if (on_cancel) {
-            lv_obj_t *back_btn = lv_btn_create(view->touch_bar);
-            gui_apply_pressed_style(back_btn);
-            lv_obj_set_size(back_btn, PROGRESS_TOUCH_BAR_H + 24, PROGRESS_TOUCH_BAR_H - 6);
-            lv_obj_align(back_btn, LV_ALIGN_CENTER, 0, 0);
-            lv_obj_set_style_bg_color(back_btn, ctrl_color, LV_PART_MAIN);
-            lv_obj_set_style_radius(back_btn, 5, LV_PART_MAIN);
-            lv_obj_set_style_pad_hor(back_btn, 8, LV_PART_MAIN);
-            lv_obj_set_style_border_width(back_btn, 0, LV_PART_MAIN);
-            lv_obj_set_style_shadow_width(back_btn, 0, LV_PART_MAIN);
-            lv_obj_add_event_cb(back_btn, progress_cancel_btn_cb, LV_EVENT_CLICKED, view);
-            lv_obj_t *back_label = lv_label_create(back_btn);
-            lv_label_set_text(back_label, LV_SYMBOL_LEFT "  Back");
-            lv_obj_set_style_text_color(back_label, ctrl_text, 0);
-            lv_obj_center(back_label);
-        }
+        lv_obj_set_height(view->card, card_h - gui_touch_bar_height());
+        gui_touch_bar_hide_arrows(&view->tb);
+        gui_touch_bar_set_callbacks(&view->tb, NULL, NULL,
+                                    on_cancel ? progress_cancel_btn_cb : NULL, view,
+                                    NULL, NULL);
     }
 
     return view;

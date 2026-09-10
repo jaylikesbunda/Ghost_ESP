@@ -9,6 +9,8 @@
 #include "managers/ghostchi_manager.h"
 #include "managers/settings_manager.h"
 #include "gui/accessibility_fonts.h"
+#include "gui/lvgl_safe.h"
+#include "gui/view_input.h"
 #include "managers/views/flappy_ghost_screen.h"
 #include "managers/views/main_menu_screen.h"
 #include <stdlib.h>
@@ -350,13 +352,9 @@ void flappy_bird_view_destroy(void) {
     bird_velocity = 0;
     score = 0;
 
-    if (game_loop_timer != NULL) {
-      lv_timer_del(game_loop_timer);
-      game_loop_timer = NULL;
-    }
+    lvgl_timer_del_safe(&game_loop_timer);
 
-    lv_obj_del(flappy_bird_view.root);
-    flappy_bird_view.root = NULL;
+    lvgl_obj_del_safe(&flappy_bird_view.root);
     flappy_bird_canvas = NULL;
     bird = NULL;
     for (int i = 0; i < MAX_PIPE_SETS; i++) {
@@ -398,13 +396,28 @@ void flappy_bird_view_hardwareinput_callback(InputEvent *event) {
       } else if (event->data.joystick_index == 0) {
         display_manager_go_back();
       }
-    } else if (event->type == INPUT_TYPE_KEYBOARD) { // dummy for handling keyboard input during game over
-      ESP_LOGW(TAG, "keyboard event; unhandled");
-      return;
+    } else if (event->type == INPUT_TYPE_KEYBOARD) {
+      if (view_input_is_back_event(event)) {
+        display_manager_go_back();
+      } else {
+        flappy_bird_restart();
+      }
+    } else if (view_input_is_exit_event(event)) {
+      display_manager_go_back();
     }
     return;
   }
 
+  if (view_input_wants_back(event)) {
+    display_manager_go_back();
+    return;
+  }
+#if defined(CONFIG_USE_ENCODER)
+  if (event->type == INPUT_TYPE_ENCODER && event->data.encoder.button) {
+    bird_velocity = settings.flap_strength;
+    return;
+  }
+#endif
   if (event->type == INPUT_TYPE_JOYSTICK) {
     int button = event->data.joystick_index;
     ESP_LOGI(TAG, "Joystick event");
@@ -416,14 +429,14 @@ void flappy_bird_view_hardwareinput_callback(InputEvent *event) {
   } else if (event->type == INPUT_TYPE_TOUCH) {
     ESP_LOGD(TAG, "Touch event");
     bird_velocity = settings.flap_strength;
-  } else if (event->type == INPUT_TYPE_KEYBOARD) { // dummy for handling keyboard input while playing
-      ESP_LOGW(TAG, "keyboard event; unhandled");
-      return;
-#if defined(CONFIG_USE_ENCODER) || defined(CONFIG_IS_ATOMS3R)
+  } else if (event->type == INPUT_TYPE_KEYBOARD) {
+      /* Space/enter flaps; Back exits (previously unhandled). */
+      if (!view_input_is_back_event(event)) {
+        bird_velocity = settings.flap_strength;
+      }
   } else if (event->type == INPUT_TYPE_EXIT_BUTTON) {
     ESP_LOGI(TAG, "IO6 exit button pressed, returning to main menu");
     display_manager_go_back();
-#endif
     }
 }
 

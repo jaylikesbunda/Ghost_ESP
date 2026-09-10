@@ -236,14 +236,16 @@ void clock_create(void) {
 }
 
 void clock_destroy(void) {
-    if (clock_timer) {
-        lvgl_timer_del_safe(&clock_timer);
-    }
+    lvgl_timer_del_safe(&clock_timer);
     if (clock_container) {
         lv_obj_clean(clock_container);
         lvgl_obj_del_safe(&clock_container);
         clock_view.root = NULL;
     }
+    time_label = NULL;
+    date_label = NULL;
+    year_label = NULL;
+    tz_label = NULL;
 }
 
 void get_clock_callback(void **callback) {

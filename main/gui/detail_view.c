@@ -561,7 +561,6 @@ static int find_next_selectable(detail_view_t *dv, int start, int dir) {
 }
 
 detail_view_t *detail_view_create(lv_obj_t *parent, const char *title) {
-    (void)title;
     if (!parent) parent = lv_scr_act();
     detail_view_t *dv = (detail_view_t *)calloc(1, sizeof(detail_view_t));
     if (!dv) return NULL;
@@ -697,7 +696,7 @@ detail_view_t *detail_view_create(lv_obj_t *parent, const char *title) {
     lv_style_set_border_width(&dv->style_divider, 0);
     lv_style_set_radius(&dv->style_divider, dv->item_radius);
     
-    display_manager_add_status_bar("Details");
+    display_manager_add_status_bar((title && title[0]) ? title : "Details");
     
     return dv;
 }

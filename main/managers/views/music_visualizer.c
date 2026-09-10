@@ -1,6 +1,7 @@
 #include "managers/views/music_visualizer.h"
 
 #include "gui/lvgl_safe.h"
+#include "gui/view_input.h"
 #include "gui/screen_layout.h"
 #include "gui/theme_palette_api.h"
 #include "gui/design_tokens.h"
@@ -309,7 +310,22 @@ static void handle_hardware_input_music_callback(InputEvent *event) {
         return;
     }
 
-    return_to_apps();
+    if (view_input_wants_back(event)) {
+        return_to_apps();
+        return;
+    }
+    if (event->type == INPUT_TYPE_JOYSTICK && event->data.joystick_index == 0) {
+        return_to_apps();
+        return;
+    }
+#if defined(CONFIG_USE_ENCODER)
+    if (event->type == INPUT_TYPE_ENCODER && event->data.encoder.button) {
+        return_to_apps();
+        return;
+    }
+#endif
+    /* Ignore all other input (joystick motion, rotation, keys) so the
+     * visualizer cannot be dismissed accidentally. */
 }
 
 static void get_music_visualizer_callback(void **callback) {

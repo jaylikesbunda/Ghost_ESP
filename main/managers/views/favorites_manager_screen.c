@@ -8,6 +8,7 @@
 #include "gui/design_tokens.h"
 #include "gui/theme_palette_api.h"
 #include "gui/toast.h"
+#include "gui/touch_bar.h"
 #pragma GCC diagnostic ignored "-Wformat-truncation"
 #include <string.h>
 #include <stdlib.h>
@@ -44,10 +45,7 @@ static lv_obj_t *s_root = NULL;
 static options_view_t *s_ov = NULL;
 #ifdef CONFIG_USE_TOUCHSCREEN
 // Standard bottom touch bar (scroll up / Back / scroll down), like NFC/SubGHz.
-#define FAV_SCROLL_BTN_SIZE 28
-#define FAV_SCROLL_BTN_PADDING 3
-#define FAV_TOUCH_BAR_HEIGHT (FAV_SCROLL_BTN_SIZE + FAV_SCROLL_BTN_PADDING * 2)
-static lv_obj_t *s_touch_bar = NULL;
+static gui_touch_bar_t s_fav_touch_tb = {0};
 static lv_obj_t *s_scroll_up_btn = NULL;
 static lv_obj_t *s_scroll_down_btn = NULL;
 static lv_obj_t *s_touch_back_btn = NULL;
@@ -150,24 +148,12 @@ static bool handle_touch(InputEvent *event) {
         s_touch_started = true;
 #ifdef CONFIG_USE_TOUCHSCREEN
         // Bar buttons act on press (NFC pattern) so sloppy taps still land.
-        lv_obj_t *bar_btns[] = { s_scroll_up_btn, s_scroll_down_btn, s_touch_back_btn };
-        bool on_bar = false;
-        for (int i = 0; i < 3; i++) {
-            lv_obj_t *b = bar_btns[i];
-            if (!b || !lv_obj_is_valid(b) || lv_obj_has_flag(b, LV_OBJ_FLAG_HIDDEN)) continue;
-            lv_area_t a;
-            lv_obj_get_coords(b, &a);
-            if (data->point.x >= a.x1 && data->point.x <= a.x2 &&
-                data->point.y >= a.y1 && data->point.y <= a.y2) {
-                if (i == 0) fav_scroll_up();
-                else if (i == 1) fav_scroll_down();
-                else fav_touch_go_back();
-                s_touch_started = false;
-                on_bar = true;
-                break;
-            }
-        }
-        if (on_bar) return true;
+        bool hit_up = false, hit_back = false, hit_down = false;
+        gui_touch_bar_hit_test(&s_fav_touch_tb, data->point.x, data->point.y,
+                               &hit_up, &hit_back, &hit_down);
+        if (hit_up) { fav_scroll_up(); s_touch_started = false; return true; }
+        if (hit_down) { fav_scroll_down(); s_touch_started = false; return true; }
+        if (hit_back) { fav_touch_go_back(); s_touch_started = false; return true; }
 #endif
         // Begin drag tracking when the press lands inside the list.
         lv_obj_t *list = options_view_get_list(s_ov);
@@ -619,33 +605,12 @@ static void fav_touch_back_cb(lv_event_t *e) { (void)e; fav_touch_go_back(); }
 static void fav_update_scroll_buttons(void) {
     lv_obj_t *list = s_ov ? options_view_get_list(s_ov) : NULL;
     if (!list || !lv_obj_is_valid(list)) return;
-    lv_obj_update_layout(list);
-    bool needs_scroll = (lv_obj_get_scroll_bottom(list) > 0) || (lv_obj_get_scroll_top(list) > 0);
-    if (needs_scroll) {
-        if (s_scroll_up_btn && lv_obj_is_valid(s_scroll_up_btn)) {
-            lv_obj_clear_flag(s_scroll_up_btn, LV_OBJ_FLAG_HIDDEN);
-            lv_obj_move_foreground(s_scroll_up_btn);
-        }
-        if (s_scroll_down_btn && lv_obj_is_valid(s_scroll_down_btn)) {
-            lv_obj_clear_flag(s_scroll_down_btn, LV_OBJ_FLAG_HIDDEN);
-            lv_obj_move_foreground(s_scroll_down_btn);
-        }
-        if (s_touch_back_btn && lv_obj_is_valid(s_touch_back_btn)) {
-            lv_obj_move_foreground(s_touch_back_btn);
-        }
-    } else {
-        if (s_scroll_up_btn && lv_obj_is_valid(s_scroll_up_btn)) lv_obj_add_flag(s_scroll_up_btn, LV_OBJ_FLAG_HIDDEN);
-        if (s_scroll_down_btn && lv_obj_is_valid(s_scroll_down_btn)) lv_obj_add_flag(s_scroll_down_btn, LV_OBJ_FLAG_HIDDEN);
-    }
+    gui_touch_bar_update_visibility(&s_fav_touch_tb, list);
 }
 #endif
 
 void favorites_manager_create(void) {
-#if defined(CONFIG_USE_TOUCHSCREEN) && GUI_LEGACY_TOUCH_BAR
-    const int touch_bar_h = FAV_TOUCH_BAR_HEIGHT;
-#else
-    const int touch_bar_h = 0;
-#endif
+    const int touch_bar_h = gui_touch_bar_height();
     // Match the options-style screens (SubGHz/NFC): themed transparent root,
     // status-bar title comes from the options view itself.
     uint8_t theme = settings_get_menu_theme(&G_Settings);
@@ -663,65 +628,17 @@ void favorites_manager_create(void) {
     }
 
 #ifdef CONFIG_USE_TOUCHSCREEN
-#if GUI_LEGACY_TOUCH_BAR
     // Standard bottom touch bar (scroll up / Back / scroll down).
-    uint8_t ctrl_theme = settings_get_menu_theme(&G_Settings);
-    lv_color_t ctrl_color = lv_color_hex(theme_palette_get_surface_alt(ctrl_theme));
-    lv_color_t ctrl_text = lv_color_hex(theme_palette_get_text(ctrl_theme));
-
-    s_touch_bar = lv_obj_create(s_root);
-    lv_obj_remove_style_all(s_touch_bar);
-    lv_obj_set_size(s_touch_bar, LV_HOR_RES, touch_bar_h);
-    lv_obj_align(s_touch_bar, LV_ALIGN_BOTTOM_MID, 0, 0);
-    lv_obj_set_style_bg_color(s_touch_bar, bg, 0);
-    lv_obj_set_style_bg_opa(s_touch_bar, LV_OPA_COVER, 0);
-    lv_obj_clear_flag(s_touch_bar, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
-
-    s_scroll_up_btn = lv_btn_create(s_touch_bar);
-    gui_apply_pressed_style(s_scroll_up_btn);
-    lv_obj_set_size(s_scroll_up_btn, FAV_SCROLL_BTN_SIZE, FAV_SCROLL_BTN_SIZE);
-    lv_obj_align(s_scroll_up_btn, LV_ALIGN_LEFT_MID, FAV_SCROLL_BTN_PADDING, 0);
-    lv_obj_set_style_bg_color(s_scroll_up_btn, ctrl_color, LV_PART_MAIN);
-    lv_obj_set_style_radius(s_scroll_up_btn, LV_RADIUS_CIRCLE, LV_PART_MAIN);
-    lv_obj_set_style_border_width(s_scroll_up_btn, 0, LV_PART_MAIN);
-    lv_obj_set_style_shadow_width(s_scroll_up_btn, 0, LV_PART_MAIN);
-    lv_obj_add_event_cb(s_scroll_up_btn, fav_scroll_up_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *up_label = lv_label_create(s_scroll_up_btn);
-    lv_label_set_text(up_label, LV_SYMBOL_UP);
-    lv_obj_set_style_text_color(up_label, ctrl_text, 0);
-    lv_obj_center(up_label);
-    lv_obj_add_flag(s_scroll_up_btn, LV_OBJ_FLAG_HIDDEN);
-
-    s_touch_back_btn = lv_btn_create(s_touch_bar);
-    gui_apply_pressed_style(s_touch_back_btn);
-    lv_obj_set_size(s_touch_back_btn, FAV_SCROLL_BTN_SIZE + 24, FAV_SCROLL_BTN_SIZE);
-    lv_obj_align(s_touch_back_btn, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_set_style_bg_color(s_touch_back_btn, ctrl_color, LV_PART_MAIN);
-    lv_obj_set_style_radius(s_touch_back_btn, 5, LV_PART_MAIN);
-    lv_obj_set_style_pad_hor(s_touch_back_btn, 8, LV_PART_MAIN);
-    lv_obj_set_style_border_width(s_touch_back_btn, 0, LV_PART_MAIN);
-    lv_obj_set_style_shadow_width(s_touch_back_btn, 0, LV_PART_MAIN);
-    lv_obj_add_event_cb(s_touch_back_btn, fav_touch_back_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *back_label = lv_label_create(s_touch_back_btn);
-    lv_label_set_text(back_label, "Back");
-    lv_obj_set_style_text_color(back_label, ctrl_text, 0);
-    lv_obj_center(back_label);
-
-    s_scroll_down_btn = lv_btn_create(s_touch_bar);
-    gui_apply_pressed_style(s_scroll_down_btn);
-    lv_obj_set_size(s_scroll_down_btn, FAV_SCROLL_BTN_SIZE, FAV_SCROLL_BTN_SIZE);
-    lv_obj_align(s_scroll_down_btn, LV_ALIGN_RIGHT_MID, -FAV_SCROLL_BTN_PADDING, 0);
-    lv_obj_set_style_bg_color(s_scroll_down_btn, ctrl_color, LV_PART_MAIN);
-    lv_obj_set_style_radius(s_scroll_down_btn, LV_RADIUS_CIRCLE, LV_PART_MAIN);
-    lv_obj_set_style_border_width(s_scroll_down_btn, 0, LV_PART_MAIN);
-    lv_obj_set_style_shadow_width(s_scroll_down_btn, 0, LV_PART_MAIN);
-    lv_obj_add_event_cb(s_scroll_down_btn, fav_scroll_down_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *down_label = lv_label_create(s_scroll_down_btn);
-    lv_label_set_text(down_label, LV_SYMBOL_DOWN);
-    lv_obj_set_style_text_color(down_label, ctrl_text, 0);
-    lv_obj_center(down_label);
-    lv_obj_add_flag(s_scroll_down_btn, LV_OBJ_FLAG_HIDDEN);
-#endif /* GUI_LEGACY_TOUCH_BAR */
+    s_fav_touch_tb = gui_touch_bar_create(s_root);
+    s_scroll_up_btn = s_fav_touch_tb.up_btn;
+    s_touch_back_btn = s_fav_touch_tb.back_btn;
+    s_scroll_down_btn = s_fav_touch_tb.down_btn;
+    if (s_fav_touch_tb.bar != NULL) {
+        gui_touch_bar_set_callbacks(&s_fav_touch_tb,
+                                    fav_scroll_up_cb, NULL,
+                                    fav_touch_back_cb, NULL,
+                                    fav_scroll_down_cb, NULL);
+    }
 #endif
 
     s_touch_started = false;
@@ -749,7 +666,7 @@ void favorites_manager_destroy(void) {
     lvgl_obj_del_safe(&s_root);
     favorites_manager_view.root = NULL;
 #ifdef CONFIG_USE_TOUCHSCREEN
-    s_touch_bar = NULL;
+    gui_touch_bar_destroy(&s_fav_touch_tb);
     s_scroll_up_btn = NULL;
     s_scroll_down_btn = NULL;
     s_touch_back_btn = NULL;

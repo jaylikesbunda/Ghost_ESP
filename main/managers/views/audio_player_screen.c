@@ -8,6 +8,7 @@
 #include "gui/accessibility_fonts.h"
 #include "gui/theme_palette_api.h"
 #include "gui/screen_layout.h"
+#include "gui/touch_bar.h"
 #include "gui/lvgl_safe.h"
 #include "gui/toast.h"
 #include "lvgl.h"
@@ -62,6 +63,7 @@ static lv_obj_t *s_np_cont = NULL;
 static lv_obj_t *s_file_list = NULL;
 static lv_obj_t *s_list_hint_label = NULL;
 static lv_obj_t *s_lib_back_btn = NULL;
+static gui_touch_bar_t s_lib_tb;
 
 /* Now Playing */
 static lv_obj_t *s_np_title = NULL;
@@ -74,6 +76,7 @@ static lv_obj_t *s_pause_btn = NULL;
 static lv_obj_t *s_prev_btn = NULL;
 static lv_obj_t *s_next_btn = NULL;
 static lv_obj_t *s_np_back_btn = NULL;
+static gui_touch_bar_t s_np_tb;
 static lv_obj_t *s_vol_track = NULL;
 static lv_obj_t *s_vol_fill = NULL;
 static lv_obj_t *s_vol_minus_btn = NULL;
@@ -164,10 +167,7 @@ static lv_obj_t *create_label(lv_obj_t *parent, const char *text, const lv_font_
 
 static bool point_in_obj(lv_obj_t *obj, int x, int y)
 {
-    if (!obj || !lv_obj_is_valid(obj)) return false;
-    lv_area_t a;
-    lv_obj_get_coords(obj, &a);
-    return x >= a.x1 && x <= a.x2 && y >= a.y1 && y <= a.y2;
+    return gui_touch_bar_hit(obj, x, y);
 }
 
 static void check_sd_and_show_toast(void)
@@ -605,36 +605,18 @@ static lv_obj_t *make_round_btn(lv_obj_t *parent, int w, int h, const char *sym,
 }
 
 /* Bottom touch bar with a centered Back button, styled like the bars on
- * other views. Returns the back button (or NULL on non-touch builds, in
- * which case hardware back input still works as usual). */
-static lv_obj_t *create_touch_bar(lv_obj_t *parent)
+ * other views. Back-only variant: arrows are permanently hidden.
+ * Button dispatch stays manual (point_in_obj in the tap handlers), so no
+ * LVGL CLICKED callbacks are attached — same as before.
+ * Returns the back button (or NULL when the bar is not shown, in which case
+ * hardware back input still works as usual). */
+static lv_obj_t *create_touch_bar(lv_obj_t *parent, gui_touch_bar_t *tb)
 {
-#if defined(CONFIG_USE_TOUCHSCREEN) && GUI_LEGACY_TOUCH_BAR
-    lv_obj_t *bar = lv_obj_create(parent);
-    lv_obj_remove_style_all(bar);
-    lv_obj_set_size(bar, LV_HOR_RES, AUDIO_TOUCH_BAR_H);
-    lv_obj_align(bar, LV_ALIGN_BOTTOM_MID, 0, 0);
-    lv_obj_set_style_bg_color(bar, s_bg_color, 0);
-    lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, 0);
-    lv_obj_clear_flag(bar, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
-
-    lv_obj_t *back_btn = lv_btn_create(bar);
-    gui_apply_pressed_style(back_btn);
-    lv_obj_set_size(back_btn, 52, AUDIO_TOUCH_BAR_H - 6);
-    lv_obj_align(back_btn, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_set_style_bg_color(back_btn, s_surface_alt_color, LV_PART_MAIN);
-    lv_obj_set_style_radius(back_btn, 5, LV_PART_MAIN);
-    lv_obj_set_style_pad_hor(back_btn, 8, LV_PART_MAIN);
-    lv_obj_set_style_border_width(back_btn, 0, LV_PART_MAIN);
-    lv_obj_set_style_shadow_width(back_btn, 0, LV_PART_MAIN);
-
-    lv_obj_t *label = create_label(back_btn, "Back", accessibility_get_font_small(), s_text_color);
-    lv_obj_center(label);
-    return back_btn;
-#else
-    (void)parent;
-    return NULL;
-#endif
+    if (!tb) return NULL;
+    *tb = gui_touch_bar_create(parent);
+    if (!tb->bar) return NULL;
+    gui_touch_bar_hide_arrows(tb);
+    return tb->back_btn;
 }
 
 static void build_library(int status_bar_h)
@@ -737,10 +719,13 @@ static void build_library(int status_bar_h)
     update_list_hint();
 
     /* Bottom touch bar: Back exits the whole view on legacy displays. Large
-     * touch panels use the header escape button plus the system edge gesture. */
-#if GUI_LEGACY_TOUCH_BAR
-    s_lib_back_btn = create_touch_bar(s_library_cont);
-#endif
+     * touch panels use the header escape button plus the system edge gesture.
+     * Gating is handled inside gui_touch_bar_create(): when it shows no bar,
+     * keep any button created above (P4 header escape). */
+    {
+        lv_obj_t *bar_back = create_touch_bar(s_library_cont, &s_lib_tb);
+        if (bar_back) s_lib_back_btn = bar_back;
+    }
 }
 
 #ifndef CONFIG_CROWPANEL_ADVANCED_P4
@@ -956,7 +941,7 @@ static void build_nowplaying_standard(int status_bar_h)
 
     /* Bottom touch bar: Back returns to the library on small devices. The P4
      * uses the system edge gesture/home indicator instead. */
-    s_np_back_btn = create_touch_bar(s_np_cont);
+    s_np_back_btn = create_touch_bar(s_np_cont, &s_np_tb);
 }
 
 static void build_nowplaying(int status_bar_h)
@@ -1223,6 +1208,8 @@ void audio_player_destroy(void)
     audio_stream_manager_stop();
     audio_stream_manager_deinit();
 
+    gui_touch_bar_destroy(&s_lib_tb);
+    gui_touch_bar_destroy(&s_np_tb);
     lvgl_obj_del_safe(&s_root);
     audio_player_view.root = NULL;
 

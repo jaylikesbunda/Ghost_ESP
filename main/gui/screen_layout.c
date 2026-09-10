@@ -419,14 +419,24 @@ void gui_screen_invalidate_bg_cache(void) {
 }
 
 lv_obj_t *gui_screen_create_content(lv_obj_t *root, lv_coord_t status_bar_h) {
+    return gui_screen_create_content_with_bottom_reserved(root, status_bar_h, 0);
+}
+
+lv_obj_t *gui_screen_create_content_with_bottom_reserved(lv_obj_t *root,
+                                                         lv_coord_t status_bar_h,
+                                                         lv_coord_t bottom_reserved) {
     if (!root) return NULL;
 
     if (status_bar_h < 0) status_bar_h = 0;
     if (status_bar_h > LV_VER_RES) status_bar_h = LV_VER_RES;
+    if (bottom_reserved < 0) bottom_reserved = 0;
+    if (status_bar_h + bottom_reserved > LV_VER_RES) {
+        bottom_reserved = LV_VER_RES - status_bar_h;
+    }
 
     lv_obj_t *content = lv_obj_create(root);
     lv_obj_set_pos(content, 0, status_bar_h);
-    lv_obj_set_size(content, LV_HOR_RES, LV_VER_RES - status_bar_h);
+    lv_obj_set_size(content, LV_HOR_RES, LV_VER_RES - status_bar_h - bottom_reserved);
     lv_obj_clear_flag(content, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_scrollbar_mode(content, LV_SCROLLBAR_MODE_OFF);
 
@@ -436,4 +446,11 @@ lv_obj_t *gui_screen_create_content(lv_obj_t *root, lv_coord_t status_bar_h) {
     lv_obj_set_style_radius(content, 0, LV_PART_MAIN);
 
     return content;
+}
+
+lv_coord_t gui_screen_content_height(lv_coord_t status_bar_h, lv_coord_t bottom_reserved) {
+    if (status_bar_h < 0) status_bar_h = 0;
+    if (bottom_reserved < 0) bottom_reserved = 0;
+    lv_coord_t h = (lv_coord_t)LV_VER_RES - status_bar_h - bottom_reserved;
+    return h >= 40 ? h : 40;
 }

@@ -18,6 +18,7 @@
 #include <math.h>
 #include <string.h>
 #include "gui/design_tokens.h"
+#include "gui/touch_bar.h"
 #include "managers/gps_manager.h"
 #include "vendor/drivers/aw9523.h"
 
@@ -40,6 +41,7 @@ static lv_obj_t *touch_bar = NULL;
 static lv_obj_t *enviii_btn_up = NULL;
 static lv_obj_t *enviii_btn_back = NULL;
 static lv_obj_t *enviii_btn_down = NULL;
+static gui_touch_bar_t s_touch_tb;
 static lv_timer_t *enviii_timer = NULL;
 
 #ifdef CONFIG_USE_TOUCHSCREEN
@@ -65,16 +67,11 @@ static uint32_t dim_color = 0x888888;
 static void enviii_scroll_content(int dir);
 
 #ifdef CONFIG_USE_TOUCHSCREEN
+/* Geometry aliases: canonical values now live in gui/touch_bar.h
+ * (GUI_TOUCH_BAR_BTN_SIZE / GUI_TOUCH_BAR_PADDING). Height math uses
+ * gui_touch_bar_height() directly. */
 #define ENVIII_SCROLL_BTN_SIZE    28
 #define ENVIII_SCROLL_BTN_PADDING 3
-
-static int enviii_touch_bar_height(void) {
-#if GUI_LEGACY_TOUCH_BAR
-    return ENVIII_SCROLL_BTN_SIZE + ENVIII_SCROLL_BTN_PADDING * 2;
-#else
-    return 0;
-#endif
-}
 #endif
 
 #ifndef CONFIG_ENVIII_I2C_PORT
@@ -742,11 +739,8 @@ static void enviii_timer_cb(lv_timer_t *timer) {
 /* -------------------------------------------------------------------------- */
 #ifdef CONFIG_USE_TOUCHSCREEN
 static bool enviii_point_in_obj(const lv_point_t *p, lv_obj_t *obj) {
-    if (!p || !obj || !lv_obj_is_valid(obj)) return false;
-    lv_area_t area;
-    lv_obj_get_coords(obj, &area);
-    return p->x >= area.x1 && p->x <= area.x2 &&
-           p->y >= area.y1 && p->y <= area.y2;
+    if (!p) return false;
+    return gui_touch_bar_hit(obj, p->x, p->y);
 }
 #endif
 
@@ -867,60 +861,18 @@ static lv_obj_t *make_metric_card(lv_obj_t *parent, int width_pct, const char *t
 static void create_touch_control_bar(lv_obj_t *root) {
     if (!root) return;
 
-    const int bar_h = enviii_touch_bar_height();
-    if (bar_h <= 0) return;
-
-    touch_bar = lv_obj_create(root);
-    lv_obj_remove_style_all(touch_bar);
-    lv_obj_set_size(touch_bar, LV_HOR_RES, bar_h);
-    lv_obj_align(touch_bar, LV_ALIGN_BOTTOM_MID, 0, 0);
-    lv_obj_set_style_bg_color(touch_bar, lv_color_hex(bg_color), 0);
-    lv_obj_set_style_bg_opa(touch_bar, LV_OPA_COVER, 0);
-    lv_obj_clear_flag(touch_bar, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
-
-    lv_obj_t *scroll_up_btn = lv_btn_create(touch_bar);
-    gui_apply_pressed_style(scroll_up_btn);
-    enviii_btn_up = scroll_up_btn;
-    lv_obj_set_size(scroll_up_btn, ENVIII_SCROLL_BTN_SIZE, ENVIII_SCROLL_BTN_SIZE);
-    lv_obj_align(scroll_up_btn, LV_ALIGN_LEFT_MID, ENVIII_SCROLL_BTN_PADDING, 0);
-    lv_obj_set_style_bg_color(scroll_up_btn, lv_color_hex(card_color), 0);
-    lv_obj_set_style_radius(scroll_up_btn, LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_style_border_width(scroll_up_btn, 0, 0);
-    lv_obj_set_style_shadow_width(scroll_up_btn, 0, 0);
-    lv_obj_t *up_label = lv_label_create(scroll_up_btn);
-    lv_label_set_text(up_label, LV_SYMBOL_UP);
-    lv_obj_set_style_text_color(up_label, lv_color_hex(text_color), 0);
-    lv_obj_center(up_label);
-
-    lv_obj_t *back_btn = lv_btn_create(touch_bar);
-    gui_apply_pressed_style(back_btn);
-    enviii_btn_back = back_btn;
-    lv_obj_set_size(back_btn, ENVIII_SCROLL_BTN_SIZE + 24, ENVIII_SCROLL_BTN_SIZE);
-    lv_obj_align(back_btn, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_set_style_bg_color(back_btn, lv_color_hex(card_color), 0);
-    lv_obj_set_style_radius(back_btn, 5, 0);
-    lv_obj_set_style_pad_hor(back_btn, 8, 0);
-    lv_obj_set_style_border_width(back_btn, 0, 0);
-    lv_obj_set_style_shadow_width(back_btn, 0, 0);
-    lv_obj_t *back_label = lv_label_create(back_btn);
-    lv_label_set_text(back_label, LV_SYMBOL_LEFT " Back");
-    lv_obj_set_style_text_color(back_label, lv_color_hex(text_color), 0);
-    lv_obj_set_style_text_font(back_label, accessibility_get_font_small(), 0);
-    lv_obj_center(back_label);
-
-    lv_obj_t *scroll_down_btn = lv_btn_create(touch_bar);
-    gui_apply_pressed_style(scroll_down_btn);
-    enviii_btn_down = scroll_down_btn;
-    lv_obj_set_size(scroll_down_btn, ENVIII_SCROLL_BTN_SIZE, ENVIII_SCROLL_BTN_SIZE);
-    lv_obj_align(scroll_down_btn, LV_ALIGN_RIGHT_MID, -ENVIII_SCROLL_BTN_PADDING, 0);
-    lv_obj_set_style_bg_color(scroll_down_btn, lv_color_hex(card_color), 0);
-    lv_obj_set_style_radius(scroll_down_btn, LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_style_border_width(scroll_down_btn, 0, 0);
-    lv_obj_set_style_shadow_width(scroll_down_btn, 0, 0);
-    lv_obj_t *down_label = lv_label_create(scroll_down_btn);
-    lv_label_set_text(down_label, LV_SYMBOL_DOWN);
-    lv_obj_set_style_text_color(down_label, lv_color_hex(text_color), 0);
-    lv_obj_center(down_label);
+    s_touch_tb = gui_touch_bar_create(root);
+    touch_bar = s_touch_tb.bar;
+    enviii_btn_up = s_touch_tb.up_btn;
+    enviii_btn_back = s_touch_tb.back_btn;
+    enviii_btn_down = s_touch_tb.down_btn;
+    /* This view keeps the scroll arrows always visible (no overflow gating);
+     * the helper starts them hidden, so un-hide to preserve the original look.
+     * Button dispatch stays manual (enviii_event_handler PR stage). */
+    if (enviii_btn_up && lv_obj_is_valid(enviii_btn_up))
+        lv_obj_clear_flag(enviii_btn_up, LV_OBJ_FLAG_HIDDEN);
+    if (enviii_btn_down && lv_obj_is_valid(enviii_btn_down))
+        lv_obj_clear_flag(enviii_btn_down, LV_OBJ_FLAG_HIDDEN);
 }
 #endif
 
@@ -950,7 +902,7 @@ void enviii_create(void) {
     lv_obj_t *content = gui_screen_create_content(enviii_container, GUI_STATUS_BAR_HEIGHT);
     enviii_content = content;
 #ifdef CONFIG_USE_TOUCHSCREEN
-    const int touch_bar_h = enviii_touch_bar_height();
+    const int touch_bar_h = gui_touch_bar_height();
     lv_obj_set_size(content, LV_HOR_RES, LV_VER_RES - GUI_STATUS_BAR_HEIGHT - touch_bar_h);
 #endif
     lv_obj_add_flag(content, LV_OBJ_FLAG_SCROLLABLE);
@@ -1099,6 +1051,7 @@ void enviii_destroy(void) {
     press_hpa_label = NULL;
     press_inhg_label = NULL;
     alt_label = NULL;
+    gui_touch_bar_destroy(&s_touch_tb);
     touch_bar = NULL;
     enviii_btn_up = NULL;
     enviii_btn_back = NULL;

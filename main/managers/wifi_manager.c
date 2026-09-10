@@ -118,6 +118,7 @@ static volatile bool g_mdns_scan_done = false;
 
 // Forward declarations for live AP scan
 static void live_ap_scan_callback(void *buf, wifi_promiscuous_pkt_type_t type);
+static void wifi_track_callback(void *buf, wifi_promiscuous_pkt_type_t type);
 static esp_err_t start_live_ap_channel_hopping(void);
 static void stop_live_ap_channel_hopping(void);
 static bool callback_uses_selected_ap_capture_plan(wifi_promiscuous_cb_t_t callback);

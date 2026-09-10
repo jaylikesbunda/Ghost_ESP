@@ -19,6 +19,7 @@
 #include "gui/gui_router.h"
 #include "gui/theme_palette_api.h"
 #include "gui/design_tokens.h"
+#include "gui/touch_bar.h"
 #include "managers/views/error_popup.h"
 #include "managers/views/keyboard_screen.h"
 #include "managers/badble_manager.h"
@@ -85,8 +86,7 @@ static const int BADBLE_SWIPE_THRESHOLD_RATIO = 10;
 static lv_obj_t *scroll_up_btn = NULL;
 static lv_obj_t *scroll_down_btn = NULL;
 static lv_obj_t *back_btn = NULL;
-#define SCROLL_BTN_SIZE 28
-#define SCROLL_BTN_PADDING 3
+static gui_touch_bar_t s_touch_tb = {0};
 
 static lv_obj_t *badble_running_popup = NULL;
 static lv_obj_t *badble_popup_title_lbl = NULL;
@@ -177,26 +177,7 @@ static void scroll_down_cb(lv_event_t *e) {
 }
 
 static void update_scroll_buttons_visibility(void) {
-    if (!menu_container || !lv_obj_is_valid(menu_container)) return;
-    lv_obj_update_layout(menu_container);
-
-    lv_coord_t scroll_bottom = lv_obj_get_scroll_bottom(menu_container);
-    lv_coord_t scroll_top = lv_obj_get_scroll_top(menu_container);
-    bool needs_scroll = (scroll_bottom > 0) || (scroll_top > 0);
-
-    if (needs_scroll) {
-        if (scroll_up_btn && lv_obj_is_valid(scroll_up_btn)) {
-            lv_obj_clear_flag(scroll_up_btn, LV_OBJ_FLAG_HIDDEN);
-            lv_obj_move_foreground(scroll_up_btn);
-        }
-        if (scroll_down_btn && lv_obj_is_valid(scroll_down_btn)) {
-            lv_obj_clear_flag(scroll_down_btn, LV_OBJ_FLAG_HIDDEN);
-            lv_obj_move_foreground(scroll_down_btn);
-        }
-    } else {
-        if (scroll_up_btn && lv_obj_is_valid(scroll_up_btn)) lv_obj_add_flag(scroll_up_btn, LV_OBJ_FLAG_HIDDEN);
-        if (scroll_down_btn && lv_obj_is_valid(scroll_down_btn)) lv_obj_add_flag(scroll_down_btn, LV_OBJ_FLAG_HIDDEN);
-    }
+    gui_touch_bar_update_visibility(&s_touch_tb, menu_container);
 }
 
 static void rebuild_menu(void);
@@ -473,11 +454,7 @@ void badble_view_create(void) {
 #ifdef CONFIG_USE_TOUCHSCREEN
     int screen_height = LV_VER_RES;
     const int STATUS_BAR_HEIGHT = GUI_STATUS_BAR_H;
-#if GUI_LEGACY_TOUCH_BAR
-    const int BUTTON_AREA_HEIGHT = SCROLL_BTN_SIZE + SCROLL_BTN_PADDING * 2;
-#else
-    const int BUTTON_AREA_HEIGHT = 0;
-#endif
+    const int BUTTON_AREA_HEIGHT = gui_touch_bar_height();
     int container_height = screen_height - STATUS_BAR_HEIGHT - BUTTON_AREA_HEIGHT;
     lv_obj_set_size(menu_container, GUI_OPTIONS_LIST_WIDTH, container_height);
     lv_obj_align(menu_container, LV_ALIGN_TOP_MID, 0, STATUS_BAR_HEIGHT);
@@ -517,72 +494,24 @@ void badble_view_create(void) {
     }
 
 #ifdef CONFIG_USE_TOUCHSCREEN
-#if GUI_LEGACY_TOUCH_BAR
-    uint8_t theme = settings_get_menu_theme(&G_Settings);
-    lv_color_t bg_color = lv_color_hex(theme_palette_get_background(theme));
-    lv_color_t ctrl_color = lv_color_hex(theme_palette_get_surface_alt(theme));
-    lv_color_t ctrl_text = lv_color_hex(theme_palette_get_text(theme));
-
-    lv_obj_t *touch_bar = lv_obj_create(root);
-    lv_obj_remove_style_all(touch_bar);
-    lv_obj_set_size(touch_bar, LV_HOR_RES, SCROLL_BTN_SIZE + SCROLL_BTN_PADDING * 2);
-    lv_obj_align(touch_bar, LV_ALIGN_BOTTOM_MID, 0, 0);
-    lv_obj_set_style_bg_color(touch_bar, bg_color, 0);
-    lv_obj_set_style_bg_opa(touch_bar, LV_OPA_COVER, 0);
-    lv_obj_clear_flag(touch_bar, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
-
-    scroll_up_btn = lv_btn_create(touch_bar);
-    gui_apply_pressed_style(scroll_up_btn);
-    lv_obj_set_size(scroll_up_btn, SCROLL_BTN_SIZE, SCROLL_BTN_SIZE);
-    lv_obj_align(scroll_up_btn, LV_ALIGN_LEFT_MID, SCROLL_BTN_PADDING, 0);
-    lv_obj_set_style_bg_color(scroll_up_btn, ctrl_color, LV_PART_MAIN);
-    lv_obj_set_style_radius(scroll_up_btn, LV_RADIUS_CIRCLE, LV_PART_MAIN);
-    lv_obj_set_style_border_width(scroll_up_btn, 0, LV_PART_MAIN);
-    lv_obj_set_style_shadow_width(scroll_up_btn, 0, LV_PART_MAIN);
-    lv_obj_add_event_cb(scroll_up_btn, scroll_up_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *up_label = lv_label_create(scroll_up_btn);
-    lv_label_set_text(up_label, LV_SYMBOL_UP);
-    lv_obj_set_style_text_color(up_label, ctrl_text, 0);
-    lv_obj_center(up_label);
-    lv_obj_add_flag(scroll_up_btn, LV_OBJ_FLAG_HIDDEN);
-
-    back_btn = lv_btn_create(touch_bar);
-    gui_apply_pressed_style(back_btn);
-    lv_obj_set_size(back_btn, SCROLL_BTN_SIZE + 24, SCROLL_BTN_SIZE);
-    lv_obj_align(back_btn, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_set_style_bg_color(back_btn, ctrl_color, LV_PART_MAIN);
-    lv_obj_set_style_radius(back_btn, 5, LV_PART_MAIN);
-    lv_obj_set_style_pad_hor(back_btn, 8, LV_PART_MAIN);
-    lv_obj_set_style_border_width(back_btn, 0, LV_PART_MAIN);
-    lv_obj_set_style_shadow_width(back_btn, 0, LV_PART_MAIN);
-    lv_obj_add_event_cb(back_btn, back_btn_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *back_label = lv_label_create(back_btn);
-    lv_label_set_text(back_label, "Back");
-    lv_obj_set_style_text_color(back_label, ctrl_text, 0);
-    lv_obj_center(back_label);
-
-    scroll_down_btn = lv_btn_create(touch_bar);
-    gui_apply_pressed_style(scroll_down_btn);
-    lv_obj_set_size(scroll_down_btn, SCROLL_BTN_SIZE, SCROLL_BTN_SIZE);
-    lv_obj_align(scroll_down_btn, LV_ALIGN_RIGHT_MID, -SCROLL_BTN_PADDING, 0);
-    lv_obj_set_style_bg_color(scroll_down_btn, ctrl_color, LV_PART_MAIN);
-    lv_obj_set_style_radius(scroll_down_btn, LV_RADIUS_CIRCLE, LV_PART_MAIN);
-    lv_obj_set_style_border_width(scroll_down_btn, 0, LV_PART_MAIN);
-    lv_obj_set_style_shadow_width(scroll_down_btn, 0, LV_PART_MAIN);
-    lv_obj_add_event_cb(scroll_down_btn, scroll_down_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *down_label = lv_label_create(scroll_down_btn);
-    lv_label_set_text(down_label, LV_SYMBOL_DOWN);
-    lv_obj_set_style_text_color(down_label, ctrl_text, 0);
-    lv_obj_center(down_label);
-    lv_obj_add_flag(scroll_down_btn, LV_OBJ_FLAG_HIDDEN);
-
-    update_scroll_buttons_visibility();
-#endif /* GUI_LEGACY_TOUCH_BAR */
+    s_touch_tb = gui_touch_bar_create(root);
+    scroll_up_btn = s_touch_tb.up_btn;
+    back_btn = s_touch_tb.back_btn;
+    scroll_down_btn = s_touch_tb.down_btn;
+    if (s_touch_tb.bar != NULL) {
+        gui_touch_bar_set_callbacks(&s_touch_tb, scroll_up_cb, NULL, back_btn_cb, NULL, scroll_down_cb, NULL);
+        update_scroll_buttons_visibility();
+    }
 #endif
 }
 
 void badble_view_destroy(void) {
     badble_dismiss_popup();
+
+    /* Poll timer is started on entry paths that do not always go through the
+     * popup-close handlers; deleting here prevents a leak when exiting while
+     * polling (matches badusb_view_destroy). */
+    lvgl_timer_del_safe(&badble_poll_timer);
 
     if (g_ov) {
         options_view_destroy(g_ov);
@@ -594,6 +523,7 @@ void badble_view_destroy(void) {
     script_names = NULL;
     badble_view.root = NULL;
     menu_container = NULL;
+    gui_touch_bar_destroy(&s_touch_tb);
     scroll_up_btn = NULL;
     scroll_down_btn = NULL;
     back_btn = NULL;
@@ -656,32 +586,20 @@ void badble_view_input_cb(InputEvent *event) {
         lv_indev_data_t *data = &event->data.touch_data;
 #ifdef CONFIG_USE_TOUCHSCREEN
         if (data->state == LV_INDEV_STATE_PR) {
-            if (scroll_up_btn && lv_obj_is_valid(scroll_up_btn) && !lv_obj_has_flag(scroll_up_btn, LV_OBJ_FLAG_HIDDEN)) {
-                lv_area_t area; lv_obj_get_coords(scroll_up_btn, &area);
-                if (data->point.x >= area.x1 && data->point.x <= area.x2 &&
-                    data->point.y >= area.y1 && data->point.y <= area.y2) {
-                    scroll_up_cb(NULL);
-                    touch_drag_reset(&badble_touch_drag);
-                    return;
-                }
+            if (gui_touch_bar_hit(scroll_up_btn, data->point.x, data->point.y)) {
+                scroll_up_cb(NULL);
+                touch_drag_reset(&badble_touch_drag);
+                return;
             }
-            if (scroll_down_btn && lv_obj_is_valid(scroll_down_btn) && !lv_obj_has_flag(scroll_down_btn, LV_OBJ_FLAG_HIDDEN)) {
-                lv_area_t area; lv_obj_get_coords(scroll_down_btn, &area);
-                if (data->point.x >= area.x1 && data->point.x <= area.x2 &&
-                    data->point.y >= area.y1 && data->point.y <= area.y2) {
-                    scroll_down_cb(NULL);
-                    touch_drag_reset(&badble_touch_drag);
-                    return;
-                }
+            if (gui_touch_bar_hit(scroll_down_btn, data->point.x, data->point.y)) {
+                scroll_down_cb(NULL);
+                touch_drag_reset(&badble_touch_drag);
+                return;
             }
-            if (back_btn && lv_obj_is_valid(back_btn)) {
-                lv_area_t area; lv_obj_get_coords(back_btn, &area);
-                if (data->point.x >= area.x1 && data->point.x <= area.x2 &&
-                    data->point.y >= area.y1 && data->point.y <= area.y2) {
-                    go_back();
-                    touch_drag_reset(&badble_touch_drag);
-                    return;
-                }
+            if (gui_touch_bar_hit(back_btn, data->point.x, data->point.y)) {
+                go_back();
+                touch_drag_reset(&badble_touch_drag);
+                return;
             }
             if (!badble_touch_drag.started) {
                 touch_drag_begin(&badble_touch_drag, data);

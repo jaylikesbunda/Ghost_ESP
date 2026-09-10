@@ -788,6 +788,12 @@ void terminal_view_create(void) {
     lv_obj_set_scrollbar_mode(terminal_scroller, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_style_border_width(terminal_scroller, 0, 0);
     lv_obj_set_style_clip_corner(terminal_scroller, false, 0);
+    /* Scrollbar OFF is intentional here (matches main_menu list): the
+     * virtualized canvas repaints visible lines only, and a scrollbar strip
+     * would force extra redraws on low-refresh displays. Overflow is still
+     * reachable via touch-drag + encoder + autoscroll. See view_input.h
+     * view_input_make_log_scrollable() for the standard AUTO log setup used
+     * by ghostscript_runner. */
     lv_obj_set_scroll_dir(terminal_scroller, LV_DIR_VER);
     lv_obj_set_scroll_snap_y(terminal_scroller, LV_SCROLL_SNAP_NONE);
     lv_obj_clear_flag(terminal_scroller, LV_OBJ_FLAG_SCROLL_ELASTIC);

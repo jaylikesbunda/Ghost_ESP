@@ -34,11 +34,19 @@ Untagged entries are by ([@jaylikesbunda](https://github.com/jaylikesbunda)). A 
 ### Changed
 - Reorganized Settings menu categories for easier navigation
 - Smoothed and improved stability and reliability of the Track RSSI readout and added a warmer/colder trend arrow
+- Standardized bottom touch bar via shared helper
+- Unified back-key handling with shared helper
+- Standardized list/log scrolling with shared helper
+- Standardized view layout and cleanup with shared helpers
+- Mapped IR buttons to theme palette
 
 ### Fixed
 - Fixed BadBLE touch-drag scrolling
 - Fixed CrowPanel display startup configs
 - Fixed ESP32-C5 merged firmware failing to boot when flashed at `0x0` by placing the bootloader at the required `0x2000` offset - @yanxke (#395)
+- Fixed BadBLE poll timer leak on exit
+- Fixed lockscreen/ghostscript touch bar gaps on large screens
+- Fixed detail titles always showing Details
 
 
 ## Revival v2.1.2

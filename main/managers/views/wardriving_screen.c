@@ -10,6 +10,7 @@
 #include "core/esp_comm_manager.h"
 #include "core/glog.h"
 #include "gui/design_tokens.h"
+#include "gui/touch_bar.h"
 #if !defined(CONFIG_IDF_TARGET_ESP32S2) && !defined(GHOSTESP_NO_NATIVE_BLE)
 #include "managers/ble_manager.h"
 #endif
@@ -57,8 +58,10 @@ static bool wardriving_owns_csv_session = false;
 static bool touch_press_active = false;
 
 #ifdef CONFIG_USE_TOUCHSCREEN
+/* Geometry aliases: canonical values now live in gui/touch_bar.h. */
 #define WD_SCROLL_BTN_SIZE 28
 #define WD_SCROLL_BTN_PADDING 3
+static gui_touch_bar_t s_touch_tb;
 static lv_obj_t *touch_bar = NULL;
 static lv_obj_t *wd_scroll_up_btn = NULL;
 static lv_obj_t *wd_scroll_down_btn = NULL;
@@ -72,12 +75,9 @@ static int wd_touch_drag_axis;
 static lv_obj_t *wd_touch_scroll_target;
 static const int WD_TAP_THRESHOLD = 14;
 
-static int wardriving_touch_bar_height(void) {
-#if GUI_LEGACY_TOUCH_BAR
-    return WD_SCROLL_BTN_SIZE + WD_SCROLL_BTN_PADDING * 2;
-#else
-    return 0;
-#endif
+static bool wd_point_in_obj(const lv_obj_t *obj, const lv_point_t *p) {
+    if (!p) return false;
+    return gui_touch_bar_hit(obj, p->x, p->y);
 }
 
 static int wd_resolve_drag_axis(int total_dx, int total_dy) {
@@ -101,13 +101,6 @@ static void wd_touch_reset(void) {
     wd_touch_dragged = false;
     wd_touch_drag_axis = 0;
     wd_touch_scroll_target = NULL;
-}
-
-static bool wd_point_in_obj(const lv_obj_t *obj, const lv_point_t *p) {
-    if (!obj || !lv_obj_is_valid(obj)) return false;
-    lv_area_t area;
-    lv_obj_get_coords(obj, &area);
-    return p->x >= area.x1 && p->x <= area.x2 && p->y >= area.y1 && p->y <= area.y2;
 }
 #endif
 
@@ -707,69 +700,27 @@ static void wd_scroll_up_cb(lv_event_t *e) { (void)e; wardriving_scroll_content(
 static void wd_scroll_down_cb(lv_event_t *e) { (void)e; wardriving_scroll_content(1); }
 static void wd_back_cb(lv_event_t *e) { (void)e; display_manager_go_back(); }
 
-/* Bottom control bar styled identically to the other touch views: circular
- * scroll-up (left) and scroll-down (right) buttons flanking a Back button. */
+/* Bottom control bar: canonical helper bar (circular scroll-up on the left,
+ * Back in the center, circular scroll-down on the right). */
 static void create_touch_control_bar(lv_obj_t *root) {
     if (!root) return;
 
-    uint8_t theme = settings_get_menu_theme(&G_Settings);
-    lv_color_t bar_bg = lv_color_hex(theme_palette_get_background(theme));
-    lv_color_t ctrl_color = lv_color_hex(theme_palette_get_surface_alt(theme));
-    lv_color_t ctrl_text = lv_color_hex(theme_palette_get_text(theme));
-
-    const int bar_h = wardriving_touch_bar_height();
-    if (bar_h <= 0) return;
-
-    touch_bar = lv_obj_create(root);
-    lv_obj_remove_style_all(touch_bar);
-    lv_obj_set_size(touch_bar, LV_HOR_RES, bar_h);
-    lv_obj_align(touch_bar, LV_ALIGN_BOTTOM_MID, 0, 0);
-    lv_obj_set_style_bg_color(touch_bar, bar_bg, 0);
-    lv_obj_set_style_bg_opa(touch_bar, LV_OPA_COVER, 0);
-    lv_obj_clear_flag(touch_bar, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
-
-    wd_scroll_up_btn = lv_btn_create(touch_bar);
-    gui_apply_pressed_style(wd_scroll_up_btn);
-    lv_obj_set_size(wd_scroll_up_btn, WD_SCROLL_BTN_SIZE, WD_SCROLL_BTN_SIZE);
-    lv_obj_align(wd_scroll_up_btn, LV_ALIGN_LEFT_MID, WD_SCROLL_BTN_PADDING, 0);
-    lv_obj_set_style_bg_color(wd_scroll_up_btn, ctrl_color, LV_PART_MAIN);
-    lv_obj_set_style_radius(wd_scroll_up_btn, LV_RADIUS_CIRCLE, LV_PART_MAIN);
-    lv_obj_set_style_border_width(wd_scroll_up_btn, 0, LV_PART_MAIN);
-    lv_obj_set_style_shadow_width(wd_scroll_up_btn, 0, LV_PART_MAIN);
-    lv_obj_add_event_cb(wd_scroll_up_btn, wd_scroll_up_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *up_label = lv_label_create(wd_scroll_up_btn);
-    lv_label_set_text(up_label, LV_SYMBOL_UP);
-    lv_obj_set_style_text_color(up_label, ctrl_text, 0);
-    lv_obj_center(up_label);
-
-    wd_back_btn = lv_btn_create(touch_bar);
-    gui_apply_pressed_style(wd_back_btn);
-    lv_obj_set_size(wd_back_btn, WD_SCROLL_BTN_SIZE + 24, WD_SCROLL_BTN_SIZE);
-    lv_obj_align(wd_back_btn, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_set_style_bg_color(wd_back_btn, ctrl_color, LV_PART_MAIN);
-    lv_obj_set_style_radius(wd_back_btn, 5, LV_PART_MAIN);
-    lv_obj_set_style_pad_hor(wd_back_btn, 8, LV_PART_MAIN);
-    lv_obj_set_style_border_width(wd_back_btn, 0, LV_PART_MAIN);
-    lv_obj_set_style_shadow_width(wd_back_btn, 0, LV_PART_MAIN);
-    lv_obj_add_event_cb(wd_back_btn, wd_back_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *back_label = lv_label_create(wd_back_btn);
-    lv_label_set_text(back_label, "Back");
-    lv_obj_set_style_text_color(back_label, ctrl_text, 0);
-    lv_obj_center(back_label);
-
-    wd_scroll_down_btn = lv_btn_create(touch_bar);
-    gui_apply_pressed_style(wd_scroll_down_btn);
-    lv_obj_set_size(wd_scroll_down_btn, WD_SCROLL_BTN_SIZE, WD_SCROLL_BTN_SIZE);
-    lv_obj_align(wd_scroll_down_btn, LV_ALIGN_RIGHT_MID, -WD_SCROLL_BTN_PADDING, 0);
-    lv_obj_set_style_bg_color(wd_scroll_down_btn, ctrl_color, LV_PART_MAIN);
-    lv_obj_set_style_radius(wd_scroll_down_btn, LV_RADIUS_CIRCLE, LV_PART_MAIN);
-    lv_obj_set_style_border_width(wd_scroll_down_btn, 0, LV_PART_MAIN);
-    lv_obj_set_style_shadow_width(wd_scroll_down_btn, 0, LV_PART_MAIN);
-    lv_obj_add_event_cb(wd_scroll_down_btn, wd_scroll_down_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *down_label = lv_label_create(wd_scroll_down_btn);
-    lv_label_set_text(down_label, LV_SYMBOL_DOWN);
-    lv_obj_set_style_text_color(down_label, ctrl_text, 0);
-    lv_obj_center(down_label);
+    s_touch_tb = gui_touch_bar_create(root);
+    touch_bar = s_touch_tb.bar;
+    wd_scroll_up_btn = s_touch_tb.up_btn;
+    wd_back_btn = s_touch_tb.back_btn;
+    wd_scroll_down_btn = s_touch_tb.down_btn;
+    gui_touch_bar_set_callbacks(&s_touch_tb,
+                                wd_scroll_up_cb, NULL,
+                                wd_back_cb, NULL,
+                                wd_scroll_down_cb, NULL);
+    /* This view keeps the scroll arrows always visible (no overflow gating);
+     * the helper starts them hidden, so un-hide to preserve the original look.
+     * Button dispatch also stays manual (PR stage above). */
+    if (wd_scroll_up_btn && lv_obj_is_valid(wd_scroll_up_btn))
+        lv_obj_clear_flag(wd_scroll_up_btn, LV_OBJ_FLAG_HIDDEN);
+    if (wd_scroll_down_btn && lv_obj_is_valid(wd_scroll_down_btn))
+        lv_obj_clear_flag(wd_scroll_down_btn, LV_OBJ_FLAG_HIDDEN);
 }
 #endif
 
@@ -916,7 +867,7 @@ void wardriving_view_create(void) {
 #ifdef CONFIG_USE_TOUCHSCREEN
     /* Leave room for the bottom control bar so the last card isn't hidden. */
     lv_obj_set_size(content, LV_HOR_RES,
-                    LV_VER_RES - GUI_STATUS_BAR_HEIGHT - wardriving_touch_bar_height());
+                    LV_VER_RES - GUI_STATUS_BAR_HEIGHT - gui_touch_bar_height());
 #endif
     lv_obj_add_flag(content, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_scroll_dir(content, LV_DIR_VER);
@@ -1146,6 +1097,7 @@ void wardriving_view_destroy(void) {
     }
     wardriving_content = NULL;
 #ifdef CONFIG_USE_TOUCHSCREEN
+    gui_touch_bar_destroy(&s_touch_tb);
     touch_bar = NULL;
     wd_scroll_up_btn = NULL;
     wd_scroll_down_btn = NULL;
