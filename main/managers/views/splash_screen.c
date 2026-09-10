@@ -305,7 +305,9 @@ void splash_set_progress(float pct, const char *label) {
     } else {
         msg->label[0] = '\0';
     }
-    display_manager_run_on_lvgl(splash_progress_apply, msg);
+    if (!display_manager_run_on_lvgl(splash_progress_apply, msg)) {
+        free(msg);
+    }
 }
 
 static void splash_progress_apply(void *arg) {

@@ -55,6 +55,7 @@ static char (*g_beacon_list)[BEACON_SSID_MAX_LEN + 1];
 static int g_beacon_list_count = 0;
 static TaskHandle_t beacon_task_handle = NULL;
 static volatile bool beacon_task_running = false;
+static char *beacon_task_ssid = NULL;
 
 // Forward declarations
 static void beacon_spam_task(void *param);
@@ -367,10 +368,10 @@ static void beacon_spam_task(void *param) {
         vTaskDelay(pdMS_TO_TICKS(settings_get_broadcast_speed(&G_Settings)));
     }
     
-    free(param);
-    // Clear handle before self-deletion to prevent race condition
+    // Clear handle before freeing so stop() never frees a param we already own
     beacon_task_handle = NULL;
-    vTaskDelete(NULL);
+    free(param);
+    vTaskDeleteWithCaps(NULL);
 }
 
 // Beacon list spam task
@@ -385,7 +386,7 @@ static void beacon_spam_list_task(void *param) {
     }
     // Clear handle before self-deletion to prevent race condition
     beacon_task_handle = NULL;
-    vTaskDelete(NULL);
+    vTaskDeleteWithCaps(NULL);
 }
 
 // Start beacon spam with a specific SSID
@@ -419,6 +420,7 @@ void beacon_spam_start(const char *ssid) {
             ap_manager_init();
             return;
         }
+        beacon_task_ssid = ssid_copy;
         rgb_manager_set_color(&rgb_manager, 0, 255, 0, 0, false);
         ghostscript_emit_event("attack_started", "beacon");
     } else {
@@ -435,7 +437,7 @@ void beacon_spam_stop(void) {
         // Signal the task to stop
         beacon_task_running = false;
         
-        // Wait for the task to delete itself (task clears handle and calls vTaskDelete(NULL))
+        // Wait for the task to delete itself (task clears handle and calls vTaskDeleteWithCaps(NULL))
         // Maximum wait time: 2 seconds (task should exit much faster)
         int wait_count = 0;
         while (beacon_task_handle != NULL && wait_count < 20) {
@@ -444,9 +446,14 @@ void beacon_spam_stop(void) {
         }
 
         if (beacon_task_handle != NULL) {
-            vTaskDelete(beacon_task_handle);
+            vTaskDeleteWithCaps(beacon_task_handle);
             beacon_task_handle = NULL;
+            if (beacon_task_ssid) {
+                free(beacon_task_ssid);
+                beacon_task_ssid = NULL;
+            }
         }
+        beacon_task_ssid = NULL;
 
         // Turn off RGB indicator
         rgb_manager_set_color(&rgb_manager, -1, 0, 0, 0, false);

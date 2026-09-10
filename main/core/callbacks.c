@@ -1633,7 +1633,7 @@ void wifi_raw_set_observer(wifi_raw_observer_t observer) {
 // cleanup function to free pcap queue and task when not capturing
 void cleanup_pcap_queue(void) {
     if (s_pcap_writer_task != NULL) {
-        vTaskDelete(s_pcap_writer_task);
+        vTaskDeleteWithCaps(s_pcap_writer_task);
         s_pcap_writer_task = NULL;
     }
     if (s_pcap_q != NULL) {

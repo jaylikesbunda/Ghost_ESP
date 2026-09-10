@@ -260,7 +260,7 @@ static void deauth_task(void *param) {
         deauth_task_running = false;
         deauth_task_handle = NULL;
         deauth_stop_requested = false;
-        vTaskDelete(NULL);
+        vTaskDeleteWithCaps(NULL);
         return;
     }
 
@@ -270,7 +270,7 @@ static void deauth_task(void *param) {
         deauth_task_running = false;
         deauth_task_handle = NULL;
         deauth_stop_requested = false;
-        vTaskDelete(NULL);
+        vTaskDeleteWithCaps(NULL);
         return;
     }
 
@@ -343,7 +343,7 @@ static void deauth_task(void *param) {
     deauth_task_running = false;
     deauth_stop_requested = false;
     deauth_task_handle = NULL;
-    vTaskDelete(NULL);
+    vTaskDeleteWithCaps(NULL);
 }
 
 void deauth_attack_start(void) {
@@ -555,7 +555,7 @@ static void deauth_station_task(void *param) {
         }
     }
     deauth_station_task_handle = NULL;
-    vTaskDelete(NULL);
+    vTaskDeleteWithCaps(NULL);
 }
 
 bool deauth_attack_stop_station(void) {
@@ -569,7 +569,7 @@ bool deauth_attack_stop_station(void) {
         }
         
         if (deauth_station_task_handle != NULL) {
-            vTaskDelete(deauth_station_task_handle);
+            vTaskDeleteWithCaps(deauth_station_task_handle);
             deauth_station_task_handle = NULL;
         }
         deauth_station_stop_requested = false;
@@ -601,7 +601,7 @@ static void handshake_deauth_task(void *param) {
         handshake_deauth_task_running = false;
         handshake_deauth_task_handle = NULL;
         handshake_deauth_stop_requested = false;
-        vTaskDelete(NULL);
+        vTaskDeleteWithCaps(NULL);
         return;
     }
 
@@ -682,7 +682,7 @@ static void handshake_deauth_task(void *param) {
     handshake_deauth_task_running = false;
     handshake_deauth_stop_requested = false;
     handshake_deauth_task_handle = NULL;
-    vTaskDelete(NULL);
+    vTaskDeleteWithCaps(NULL);
 }
 
 void deauth_attack_start_handshake_deauth(void) {
@@ -827,6 +827,7 @@ void deauth_attack_start_handshake_deauth(void) {
         handshake_deauth_task_handle = NULL;
         handshake_deauth_stop_requested = false;
         esp_wifi_set_promiscuous(false);
+        pcap_file_close();
         esp_wifi_stop();
         (void)ap_manager_restore_after_attack("hs+deauth start");
         return;

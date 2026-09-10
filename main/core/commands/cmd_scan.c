@@ -290,7 +290,7 @@ static void sweep_run_internal(void) {
 static void sweep_task(void *pvParameters) {
     (void)pvParameters;
     sweep_run_internal();
-    vTaskDelete(NULL);
+    vTaskDeleteWithCaps(NULL);
 }
 
 void sweep_start_async(int wifi_seconds, int ble_seconds) {

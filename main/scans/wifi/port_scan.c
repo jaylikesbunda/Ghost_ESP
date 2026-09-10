@@ -816,7 +816,7 @@ bool port_scan_subnet(void) {
  */
 static void port_scan_subnet_task(void *pvParameters) {
     port_scan_subnet();
-    vTaskDelete(NULL);
+    vTaskDeleteWithCaps(NULL);
 }
 
 /**

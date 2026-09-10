@@ -98,6 +98,7 @@ extern struct wpa_sm gWpaSm;
 
 static volatile bool gtk_abuse_running = false;
 static TaskHandle_t gtk_abuse_task_handle = NULL;
+static char *gtk_abuse_args = NULL;
 
 typedef struct {
     uint8_t gtk[WPA_GTK_MAX_LEN];
@@ -392,7 +393,7 @@ static bool inject_gtk_test_frame(gtk_abuse_ctx_t *ctx, const char *target_ip, u
     gtk_abuse_running = false; \
     gtk_abuse_task_handle = NULL; \
     free(param); \
-    vTaskDelete(NULL); \
+    vTaskDeleteWithCaps(NULL); \
     return; \
 } while(0)
 
@@ -419,7 +420,7 @@ static void gtk_abuse_task(void *param) {
         gtk_abuse_running = false;
         gtk_abuse_task_handle = NULL;
         free(param);
-        vTaskDelete(NULL);
+        vTaskDeleteWithCaps(NULL);
         return;
     }
     gtk_ctx = ctx;
@@ -566,6 +567,8 @@ void gtk_abuse_start(const char *ssid, const char *password) {
         glog("GTK Abuse: Failed to start task\n");
         gtk_abuse_running = false;
         free(args);
+    } else {
+        gtk_abuse_args = args;
     }
 }
 
@@ -575,7 +578,11 @@ void gtk_abuse_stop(void) {
     if (gtk_abuse_task_handle) {
         TaskHandle_t h = gtk_abuse_task_handle;
         gtk_abuse_task_handle = NULL;
-        vTaskDelete(h);
+        vTaskDeleteWithCaps(h);
+        if (gtk_abuse_args) {
+            free(gtk_abuse_args);
+            gtk_abuse_args = NULL;
+        }
     }
     if (gtk_ctx) {
         gtk_last_result = gtk_ctx->result;

@@ -121,7 +121,9 @@ static void runner_post_ui(runner_ui_action_type_t type, const char *text) {
     if (text) {
         strncpy(action->text, text, sizeof(action->text) - 1);
     }
-    display_manager_run_on_lvgl(runner_ui_apply, action);
+    if (!display_manager_run_on_lvgl(runner_ui_apply, action)) {
+        free(action);
+    }
 }
 
 static void runner_api_set_title(const char *title) {

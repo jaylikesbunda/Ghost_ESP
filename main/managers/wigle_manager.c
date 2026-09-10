@@ -25,6 +25,7 @@
 #include <time.h>
 #include <stdint.h>
 #include "freertos/task.h"
+#include "freertos/idf_additions.h"
 #include "esp_netif.h"
 
 #define WIGLE_UPLOAD_URL "https://api.wigle.net/api/v2/file/upload"
@@ -1082,7 +1083,7 @@ static void wigle_upload_all_task(void *arg) {
     vTaskDelay(pdMS_TO_TICKS(2000));
     (void)wigle_upload_all();
     wigle_upload_in_progress = false;
-    vTaskDelete(NULL);
+    vTaskDeleteWithCaps(NULL);
 }
 
 void wigle_upload_all_async(void) {
@@ -1282,7 +1283,7 @@ static void wigle_single_upload_task(void *arg) {
 
     wigle_manual_upload_in_progress = false;
     free(task);
-    vTaskDelete(NULL);
+    vTaskDeleteWithCaps(NULL);
 }
 
 esp_err_t wigle_upload_single_csv_async(const char *filename) {
@@ -1441,7 +1442,7 @@ static void wigle_stats_task(void *arg) {
     }
 
     wigle_stats_in_progress = false;
-    vTaskDelete(NULL);
+    vTaskDeleteWithCaps(NULL);
 }
 
 esp_err_t wigle_get_stats_async(void) {
@@ -1590,6 +1591,6 @@ done:
     
     wigle_test_in_progress = false;
     free(result);
-    vTaskDelete(NULL);
+    vTaskDeleteWithCaps(NULL);
 }
 

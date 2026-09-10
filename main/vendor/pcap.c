@@ -496,6 +496,11 @@ esp_err_t pcap_file_open_in_dir(const char *base_file_name,
     return ESP_ERR_TIMEOUT;
   }
 
+  if (pcap_file) {
+    fclose(pcap_file);
+    pcap_file = NULL;
+  }
+
   buffer_offset = 0;
   s_capture_active = false;
   memset(&s_capture_stats, 0, sizeof(s_capture_stats));

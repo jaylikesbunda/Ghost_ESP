@@ -347,7 +347,9 @@ static void toast_post(const char *text, uint8_t type, uint16_t duration_ms) {
     a->type = type;
     a->duration_ms = duration_ms > 0 ? duration_ms : TOAST_DEFAULT_DURATION_MS;
 
-    display_manager_run_on_lvgl(toast_async_cb, a);
+    if (!display_manager_run_on_lvgl(toast_async_cb, a)) {
+        free(a);
+    }
 }
 
 void toast_show(const char *text, uint8_t type) {

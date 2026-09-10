@@ -1099,6 +1099,10 @@ void chameleon_manager_init(void) {
         ESP_LOGE(TAG, "Failed to create semaphores");
         printf("Failed to initialize Chameleon Ultra manager\n");
         TERMINAL_VIEW_ADD_TEXT("Failed to initialize Chameleon Ultra manager\n");
+        if (g_scan_sem) { vSemaphoreDelete(g_scan_sem); g_scan_sem = NULL; }
+        if (g_connect_sem) { vSemaphoreDelete(g_connect_sem); g_connect_sem = NULL; }
+        if (g_response_sem) { vSemaphoreDelete(g_response_sem); g_response_sem = NULL; }
+        if (g_disconnect_sem) { vSemaphoreDelete(g_disconnect_sem); g_disconnect_sem = NULL; }
         return;
     }
     

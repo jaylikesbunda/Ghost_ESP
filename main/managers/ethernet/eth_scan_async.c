@@ -181,7 +181,7 @@ done:
     s_running      = false;
     s_results.cancelled = s_cancelled;
     ESP_LOGI(TAG, "ARP scan done: %d hosts found", s_results.arp_count);
-    vTaskDelete(NULL);
+    vTaskDeleteWithCaps(NULL);
 }
 
 // ---------------------------------------------------------------------------
@@ -350,7 +350,7 @@ done:
     s_results.cancelled = s_cancelled;
     ESP_LOGI(TAG, "Port scan done: %d open ports on %s",
              s_results.port_count, s_results.target_ip);
-    vTaskDelete(NULL);
+    vTaskDeleteWithCaps(NULL);
 }
 
 // ---------------------------------------------------------------------------
@@ -482,7 +482,7 @@ done:
     s_results.cancelled = s_cancelled;
     ESP_LOGI(TAG, "Ping sweep done: %d/%d alive",
              s_results.ping_alive, s_results.ping_total);
-    vTaskDelete(NULL);
+    vTaskDeleteWithCaps(NULL);
 }
 
 // ---------------------------------------------------------------------------

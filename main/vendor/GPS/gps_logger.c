@@ -758,6 +758,10 @@ esp_err_t csv_file_open(const char *base_file_name) {
     if (csv_mutex == NULL) {
         csv_mutex = xSemaphoreCreateMutex();
         if (!csv_mutex) {
+            if (csv_file) {
+                fclose(csv_file);
+                csv_file = NULL;
+            }
             free(csv_buffer);
             free(csv_pre_header);
             csv_buffer = NULL;

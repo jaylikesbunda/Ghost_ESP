@@ -1229,7 +1229,7 @@ static void enum_scan_task(void *pvParameters) {
         if (!get_wifi_subnet_range(subnet_prefix, sizeof(subnet_prefix), &first, &last)) {
             glog("Enum Scan: Failed to get subnet\n");
             g_enum_scan_done = true;
-            vTaskDelete(NULL);
+            vTaskDeleteWithCaps(NULL);
             return;
         }
 
@@ -1257,7 +1257,7 @@ static void enum_scan_task(void *pvParameters) {
     g_enum_result_count = found;
     glog("Enum Scan: Done. Found %d host(s)\n", found);
     g_enum_scan_done = true;
-    vTaskDelete(NULL);
+    vTaskDeleteWithCaps(NULL);
 }
 
 esp_err_t enum_scan_start_async(void) {

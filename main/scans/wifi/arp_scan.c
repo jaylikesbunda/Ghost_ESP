@@ -578,7 +578,7 @@ static void arp_scan_task(void *pvParameters) {
     (void)pvParameters;
     arp_scan_subnet();
     g_arp_scan_done = true;
-    vTaskDelete(NULL);
+    vTaskDeleteWithCaps(NULL);
 }
 
 esp_err_t arp_scan_start_async(void) {

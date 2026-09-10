@@ -315,6 +315,10 @@ esp_err_t audio_receiver_manager_init(void)
                     AUDIO_DEC_TASK_PRIO, &s_recv.decode_task) != pdPASS) {
         free(s_recv.rx_ringbuf.buf);
         s_recv.rx_ringbuf.buf = NULL;
+        if (s_recv.decode_done_sem) {
+            vSemaphoreDelete(s_recv.decode_done_sem);
+            s_recv.decode_done_sem = NULL;
+        }
         esp_comm_manager_register_stream_handler(COMM_STREAM_CHANNEL_AUDIO, NULL, NULL);
         return ESP_ERR_NO_MEM;
     } else if (!s_decode_task_stack || !s_decode_task_tcb) {

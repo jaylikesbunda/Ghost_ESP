@@ -241,6 +241,13 @@ esp_err_t send_command(const char *command, const char *video_id,
     return ESP_ERR_INVALID_ARG;
   }
 
+  response_buffer_t resp_buf = {0};
+  esp_http_client_handle_t client = NULL;
+  char *url_params = NULL;
+  char *body_params = NULL;
+  char *full_url = NULL;
+  esp_err_t result = ESP_OK;
+
   // URL-encode parameters
   char *encoded_loungeIdToken = url_encode(device->YoutubeToken);
   char *encoded_SID = url_encode(device->SID);
@@ -253,15 +260,17 @@ esp_err_t send_command(const char *command, const char *video_id,
   if (!encoded_loungeIdToken || !encoded_SID || !encoded_gsession ||
       !encoded_command || (!encoded_video_id && video_id)) {
     ESP_LOGE(TAG, "URL encoding failed for one or more parameters.");
+    result = ESP_FAIL;
     goto cleanup;
   }
 
   size_t url_params_len = snprintf(NULL, 0,
            "CVER=1&RID=1&SID=%s&VER=8&gsessionid=%s&loungeIdToken=%s",
            encoded_SID, encoded_gsession, encoded_loungeIdToken) + 1;
-  char *url_params = malloc(url_params_len);
+  url_params = malloc(url_params_len);
   if (!url_params) {
     ESP_LOGE(TAG, "Failed to allocate memory for URL parameters");
+    result = ESP_ERR_NO_MEM;
     goto cleanup;
   }
   snprintf(url_params, url_params_len,
@@ -270,7 +279,6 @@ esp_err_t send_command(const char *command, const char *video_id,
   ESP_LOGI(TAG, "Query Parameters: %s", url_params);
 
   size_t body_params_len = 0;
-  char *body_params = NULL;
   if (strcmp(command, "setVideo") == 0) {
     body_params_len = snprintf(NULL, 0,
              "count=1&req0__sc=%s&req0_videoId=%s&req0_currentTime=0&req0_currentIndex=0&req0_videoIds=%s",
@@ -278,6 +286,7 @@ esp_err_t send_command(const char *command, const char *video_id,
     body_params = malloc(body_params_len);
     if (!body_params) {
       ESP_LOGE(TAG, "Failed to allocate memory for body parameters");
+      result = ESP_ERR_NO_MEM;
       goto cleanup;
     }
     snprintf(body_params, body_params_len,
@@ -290,6 +299,7 @@ esp_err_t send_command(const char *command, const char *video_id,
     body_params = malloc(body_params_len);
     if (!body_params) {
       ESP_LOGE(TAG, "Failed to allocate memory for body parameters");
+      result = ESP_ERR_NO_MEM;
       goto cleanup;
     }
     snprintf(body_params, body_params_len,
@@ -301,12 +311,14 @@ esp_err_t send_command(const char *command, const char *video_id,
     body_params = malloc(body_params_len);
     if (!body_params) {
       ESP_LOGE(TAG, "Failed to allocate memory for body parameters");
+      result = ESP_ERR_NO_MEM;
       goto cleanup;
     }
     snprintf(body_params, body_params_len, "count=1&req0__sc=%s",
              encoded_command);
   } else {
     ESP_LOGE(TAG, "Unsupported command: %s", command);
+    result = ESP_ERR_INVALID_ARG;
     goto cleanup;
   }
   ESP_LOGI(TAG, "Body Parameters: %s", body_params);
@@ -314,13 +326,16 @@ esp_err_t send_command(const char *command, const char *video_id,
   size_t free_heap = heap_caps_get_free_size(MALLOC_CAP_8BIT);
   if (free_heap < DIAL_MIN_FREE_HEAP_FOR_HTTPS) {
     ESP_LOGE(TAG, "Insufficient heap for HTTPS: %u bytes free, need %d", free_heap, DIAL_MIN_FREE_HEAP_FOR_HTTPS);
+    result = ESP_ERR_NO_MEM;
     goto cleanup;
   }
 
-  response_buffer_t resp_buf = {
-      .buffer = malloc(DIAL_RESPONSE_BUFFER_SIZE), .buffer_len = 0, .buffer_size = DIAL_RESPONSE_BUFFER_SIZE};
+  resp_buf.buffer = malloc(DIAL_RESPONSE_BUFFER_SIZE);
+  resp_buf.buffer_len = 0;
+  resp_buf.buffer_size = DIAL_RESPONSE_BUFFER_SIZE;
   if (!resp_buf.buffer) {
     ESP_LOGE(TAG, "Failed to allocate memory for response buffer.");
+    result = ESP_FAIL;
     goto cleanup;
   }
 
@@ -334,9 +349,10 @@ esp_err_t send_command(const char *command, const char *video_id,
       .buffer_size = DIAL_HTTP_BUFFER_SIZE,
       .buffer_size_tx = DIAL_HTTP_BUFFER_SIZE,
   };
-  esp_http_client_handle_t client = esp_http_client_init(&config);
+  client = esp_http_client_init(&config);
   if (!client) {
     ESP_LOGE(TAG, "Failed to initialize HTTP client");
+    result = ESP_FAIL;
     goto cleanup;
   }
 
@@ -345,9 +361,10 @@ esp_err_t send_command(const char *command, const char *video_id,
 
   // Dynamically allocate buffer for full_url
   size_t full_url_len = strlen(config.url) + 1 + strlen(url_params) + 1; // base + '?' + params + '\0'
-  char *full_url = malloc(full_url_len);
+  full_url = malloc(full_url_len);
   if (full_url == NULL) {
     ESP_LOGE(TAG, "Failed to allocate memory for full_url");
+    result = ESP_ERR_NO_MEM;
     goto cleanup;
   }
   snprintf(full_url, full_url_len, "%s?%s", config.url, url_params);
@@ -366,6 +383,7 @@ esp_err_t send_command(const char *command, const char *video_id,
   esp_err_t err = esp_http_client_perform(client);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "HTTP request failed: %s", esp_err_to_name(err));
+    result = err;
     goto cleanup;
   }
 
@@ -388,7 +406,7 @@ cleanup:
   esp_http_client_cleanup(client);
   free(full_url); // Free allocated memory
 
-  return ESP_OK;
+  return result;
 }
 
 esp_err_t bind_session_id(Device *device) {
@@ -452,6 +470,7 @@ esp_err_t bind_session_id(Device *device) {
     free(encoded_zx);
     free(encoded_name);
     free(zx);
+    free(url_params);
     return ESP_ERR_NO_MEM;
   }
 
@@ -482,7 +501,13 @@ esp_err_t bind_session_id(Device *device) {
 
   if (!client) {
     ESP_LOGE(TAG, "Failed to initialize HTTP client.");
+    free(url_params);
     free(resp_buf.buffer);
+    free(encoded_loungeIdToken);
+    free(encoded_UUID);
+    free(encoded_zx);
+    free(encoded_name);
+    free(zx);
     return ESP_FAIL;
   }
 
@@ -517,6 +542,13 @@ esp_err_t bind_session_id(Device *device) {
     ESP_LOGE(TAG, "HTTP request failed: %s", esp_err_to_name(err));
     esp_http_client_cleanup(client);
     free(resp_buf.buffer);
+    free(encoded_loungeIdToken);
+    free(encoded_UUID);
+    free(encoded_zx);
+    free(encoded_name);
+    free(zx);
+    free(url_params);
+    free(full_url);
     return err;
   }
 
@@ -528,6 +560,13 @@ esp_err_t bind_session_id(Device *device) {
       ESP_LOGE(TAG, "Failed to allocate memory for null terminator");
       esp_http_client_cleanup(client);
       free(resp_buf.buffer);
+      free(encoded_loungeIdToken);
+      free(encoded_UUID);
+      free(encoded_zx);
+      free(encoded_name);
+      free(zx);
+      free(url_params);
+      free(full_url);
       return ESP_FAIL;
     }
     resp_buf.buffer = new_buffer;
@@ -556,6 +595,9 @@ esp_err_t bind_session_id(Device *device) {
       free(zx);
       free(url_params);
       free(full_url);
+      free(gsession_item);
+      free(sid_item);
+      free(lid_item);
       return ESP_FAIL;
     }
     snprintf(device->gsession, sizeof(device->gsession), "%s", gsession_item);
@@ -568,6 +610,16 @@ esp_err_t bind_session_id(Device *device) {
     ESP_LOGE(TAG, "Failed to bind session ID.");
     esp_http_client_cleanup(client);
     free(resp_buf.buffer);
+    free(encoded_loungeIdToken);
+    free(encoded_UUID);
+    free(encoded_zx);
+    free(encoded_name);
+    free(zx);
+    free(url_params);
+    free(full_url);
+    free(gsession_item);
+    free(sid_item);
+    free(lid_item);
     return ESP_FAIL;
   }
 
@@ -581,6 +633,9 @@ esp_err_t bind_session_id(Device *device) {
   free(resp_buf.buffer);
   free(url_params);
   free(full_url);
+  free(gsession_item);
+  free(sid_item);
+  free(lid_item);
   return ESP_OK;
 }
 
@@ -1003,6 +1058,7 @@ esp_err_t check_app_status(DIALManager *manager, DIALAppType app,
   esp_http_client_handle_t http_client = esp_http_client_init(&config);
   if (http_client == NULL) {
     ESP_LOGE(TAG, "Failed to initialize HTTP client");
+    free(path);
     return ESP_ERR_NO_MEM;
   }
 
@@ -1020,6 +1076,7 @@ esp_err_t check_app_status(DIALManager *manager, DIALAppType app,
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to open HTTP connection: %s", esp_err_to_name(err));
     esp_http_client_cleanup(http_client);
+    free(path);
     return err;
   }
 
@@ -1028,6 +1085,7 @@ esp_err_t check_app_status(DIALManager *manager, DIALAppType app,
   if (status_code < 0) {
     ESP_LOGE(TAG, "Failed to fetch HTTP headers");
     esp_http_client_cleanup(http_client);
+    free(path);
     return ESP_FAIL;
   }
 
@@ -1040,6 +1098,7 @@ esp_err_t check_app_status(DIALManager *manager, DIALAppType app,
     if(!response_body){
       ESP_LOGE(TAG, "malloc failed");
       esp_http_client_cleanup(http_client);
+      free(path);
       return ESP_ERR_NO_MEM;
     }
     int content_len = esp_http_client_read(http_client, response_body, DIAL_RESPONSE_BUFFER_SIZE - 1);
@@ -1061,27 +1120,32 @@ esp_err_t check_app_status(DIALManager *manager, DIALAppType app,
           free(screen_id);
           free(response_body);
           esp_http_client_cleanup(http_client);
+          free(path);
           return ESP_OK;
         }
         free(response_body);
         esp_http_client_cleanup(http_client);
+        free(path);
         return ESP_FAIL;
       } else {
         ESP_LOGW("DIALManager", "%s app is not running",
                  (app == APP_YOUTUBE) ? "YouTube" : "Netflix");
         free(response_body);
         esp_http_client_cleanup(http_client);
+        free(path);
         return ESP_ERR_NOT_FOUND;
       }
     } else {
       ESP_LOGE(TAG, "Failed to read HTTP response body");
       free(response_body);
       esp_http_client_cleanup(http_client);
+      free(path);
       return ESP_FAIL;
     }
   } else {
     ESP_LOGE("DIALManager", "Unexpected HTTP status code: %d", status_code);
     esp_http_client_cleanup(http_client);
+    free(path);
     return ESP_FAIL;
   }
 }
@@ -1115,6 +1179,11 @@ bool launch_app(DIALManager *manager, DIALAppType app, const char *appUrl) {
       .timeout_ms = 5000,
   };
   esp_http_client_handle_t http_client = esp_http_client_init(&config);
+  if (http_client == NULL) {
+    ESP_LOGE(TAG, "Failed to initialize HTTP client");
+    free(path);
+    return false;
+  }
 
   esp_http_client_set_header(http_client, "Origin", "https://www.youtube.com");
 
@@ -1125,6 +1194,7 @@ bool launch_app(DIALManager *manager, DIALAppType app, const char *appUrl) {
       ESP_LOGI(TAG, "Successfully launched the app: %s",
                (app == APP_YOUTUBE) ? "YouTube" : "Netflix");
       esp_http_client_cleanup(http_client);
+      free(path);
       return true;
     } else {
       ESP_LOGE(TAG, "Failed to launch the app. HTTP Response Code: %d",
@@ -1136,6 +1206,7 @@ bool launch_app(DIALManager *manager, DIALAppType app, const char *appUrl) {
   }
 
   esp_http_client_cleanup(http_client);
+  free(path);
   return false;
 }
 

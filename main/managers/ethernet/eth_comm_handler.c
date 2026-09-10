@@ -201,7 +201,7 @@ static void remote_arp_task(void *arg) {
     eth_stream_record("S|done");
     s_remote_task_running = false;
     s_remote_task = NULL;
-    vTaskDelete(NULL);
+    vTaskDeleteWithCaps(NULL);
 }
 
 // -----------------------------------------------------------------------
@@ -218,7 +218,7 @@ static void remote_fp_task(void *arg) {
     if (!s_remote_task_running) {
         eth_stream_record("S|done");
         s_remote_task = NULL;
-        vTaskDelete(NULL);
+        vTaskDeleteWithCaps(NULL);
         return;
     }
 
@@ -251,7 +251,7 @@ static void remote_fp_task(void *arg) {
     eth_stream_record("S|done");
     s_remote_task_running = false;
     s_remote_task = NULL;
-    vTaskDelete(NULL);
+    vTaskDeleteWithCaps(NULL);
 }
 
 // -----------------------------------------------------------------------
@@ -293,7 +293,7 @@ static void remote_port_task(void *arg) {
     eth_stream_record("S|done");
     s_remote_task_running = false;
     s_remote_task = NULL;
-    vTaskDelete(NULL);
+    vTaskDeleteWithCaps(NULL);
 }
 
 // -----------------------------------------------------------------------
@@ -331,7 +331,7 @@ static void remote_ping_task(void *arg) {
     eth_stream_record("S|done");
     s_remote_task_running = false;
     s_remote_task = NULL;
-    vTaskDelete(NULL);
+    vTaskDeleteWithCaps(NULL);
 }
 
 // -----------------------------------------------------------------------
@@ -387,7 +387,7 @@ static void remote_poison_monitor_task(void *arg) {
     eth_stream_record("S|stopped");
     s_remote_task_running = false;
     s_remote_task = NULL;
-    vTaskDelete(NULL);
+    vTaskDeleteWithCaps(NULL);
 }
 
 // -----------------------------------------------------------------------

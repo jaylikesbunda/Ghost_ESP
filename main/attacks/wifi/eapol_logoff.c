@@ -146,7 +146,7 @@ static void eapol_logoff_task(void *param) {
         vTaskDelay(pdMS_TO_TICKS(eapol_attack_delay_ms));
     }
     eapol_logoff_task_handle = NULL;
-    vTaskDelete(NULL);
+    vTaskDeleteWithCaps(NULL);
 }
 
 void eapol_logoff_start(void) {
@@ -182,7 +182,7 @@ void eapol_logoff_start(void) {
         glog("EAPOL Logoff failed to start (attack=%ld)\n", (long)attack_rc);
         eapol_logoff_running = false;
         if (eapol_logoff_task_handle) {
-            vTaskDelete(eapol_logoff_task_handle);
+            vTaskDeleteWithCaps(eapol_logoff_task_handle);
             eapol_logoff_task_handle = NULL;
         }
         esp_wifi_stop();
@@ -213,7 +213,7 @@ void eapol_logoff_stop(void) {
     if (eapol_logoff_task_handle) {
         TaskHandle_t temp_handle = eapol_logoff_task_handle;
         eapol_logoff_task_handle = NULL;
-        vTaskDelete(temp_handle);
+        vTaskDeleteWithCaps(temp_handle);
     }
     
     esp_wifi_stop();

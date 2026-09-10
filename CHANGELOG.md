@@ -47,6 +47,11 @@ Untagged entries are by ([@jaylikesbunda](https://github.com/jaylikesbunda)). A 
 - Fixed BadBLE poll timer leak on exit
 - Fixed lockscreen/ghostscript touch bar gaps on large screens
 - Fixed detail titles always showing Details
+- Fixed PSRAM task stack leaks across Wi-Fi attacks, scans, Ethernet, nRF24, SubGHz and MIC visualizer
+- Fixed DIAL URL/session buffer leaks and uninitialized-pointer cleanup
+- Fixed leaked LVGL async payloads when the display queue is busy
+- Fixed PCAP and wardriving CSV file handles leaking on restart
+- Fixed semaphore leaks in Chameleon and audio receiver init failures
 
 
 ## Revival v2.1.2

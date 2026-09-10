@@ -58,7 +58,7 @@ static void dhcp_starve_task(void *param) {
         glog("DHCP-Starve: failed to create socket\n");
         dhcp_starve_running = false;
         dhcp_starve_task_handle = NULL;
-        vTaskDelete(NULL);
+        vTaskDeleteWithCaps(NULL);
         return;
     }
 
@@ -68,7 +68,7 @@ static void dhcp_starve_task(void *param) {
         close(sock);
         dhcp_starve_running = false;
         dhcp_starve_task_handle = NULL;
-        vTaskDelete(NULL);
+        vTaskDeleteWithCaps(NULL);
         return;
     }
     struct sockaddr_in addr = { 
@@ -118,7 +118,7 @@ static void dhcp_starve_task(void *param) {
     }
     close(sock);
     dhcp_starve_task_handle = NULL;
-    vTaskDelete(NULL);
+    vTaskDeleteWithCaps(NULL);
 }
 
 void dhcp_starvation_start(int threads) {
@@ -148,7 +148,7 @@ void dhcp_starvation_start(int threads) {
         glog("Failed to start DHCP starvation task (%ld)\n", (long)attack_rc);
         dhcp_starve_running = false;
         if (dhcp_starve_task_handle != NULL) {
-            vTaskDelete(dhcp_starve_task_handle);
+            vTaskDeleteWithCaps(dhcp_starve_task_handle);
             dhcp_starve_task_handle = NULL;
         }
         return;

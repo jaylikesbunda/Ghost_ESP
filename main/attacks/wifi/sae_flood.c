@@ -603,7 +603,7 @@ static void sae_flood_task(void *param) {
     
     printf("SAE flood stopped. Sent: %d\n", sae_flood_packets_sent);
     sae_flood_task_handle = NULL;
-    vTaskDelete(NULL);
+    vTaskDeleteWithCaps(NULL);
 }
 
 static void sae_flood_display_task(void *param) {
@@ -624,7 +624,7 @@ static void sae_flood_display_task(void *param) {
     }
     
     sae_flood_display_task_handle = NULL;
-    vTaskDelete(NULL);
+    vTaskDeleteWithCaps(NULL);
 }
 
 /**
@@ -834,11 +834,11 @@ void sae_flood_start(const char *password) {
         glog("SAE flood failed to start tasks (attack=%ld, display=%ld)\n", (long)attack_rc, (long)display_rc);
         sae_flood_running = false;
         if (sae_flood_task_handle != NULL) {
-            vTaskDelete(sae_flood_task_handle);
+            vTaskDeleteWithCaps(sae_flood_task_handle);
             sae_flood_task_handle = NULL;
         }
         if (sae_flood_display_task_handle != NULL) {
-            vTaskDelete(sae_flood_display_task_handle);
+            vTaskDeleteWithCaps(sae_flood_display_task_handle);
             sae_flood_display_task_handle = NULL;
         }
         wifi_manager_stop_monitor_mode();
@@ -874,11 +874,11 @@ void sae_flood_stop(void) {
     }
 
     if (sae_flood_task_handle != NULL) {
-        vTaskDelete(sae_flood_task_handle);
+        vTaskDeleteWithCaps(sae_flood_task_handle);
         sae_flood_task_handle = NULL;
     }
     if (sae_flood_display_task_handle != NULL) {
-        vTaskDelete(sae_flood_display_task_handle);
+        vTaskDeleteWithCaps(sae_flood_display_task_handle);
         sae_flood_display_task_handle = NULL;
     }
     

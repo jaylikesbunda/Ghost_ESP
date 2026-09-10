@@ -108,7 +108,9 @@ static void schedule_route(const gui_route_t *route,
     if (!call) return;
     call->route = *route;
     call->operation = operation;
-    display_manager_run_on_lvgl(run_route_call, call);
+    if (!display_manager_run_on_lvgl(run_route_call, call)) {
+        free(call);
+    }
 }
 
 void gui_router_navigate(const gui_route_t *route) {

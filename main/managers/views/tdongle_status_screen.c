@@ -87,7 +87,9 @@ void tdongle_status_set_lines(const char *line_one, const char *line_two)
     if (!msg) return;
     tdongle_status_copy(msg->line1, sizeof(msg->line1), line_one);
     tdongle_status_copy(msg->line2, sizeof(msg->line2), line_two);
-    display_manager_run_on_lvgl(tdongle_status_apply_async, msg);
+    if (!display_manager_run_on_lvgl(tdongle_status_apply_async, msg)) {
+        free(msg);
+    }
 }
 
 void tdongle_status_show_status(const char *status_line)

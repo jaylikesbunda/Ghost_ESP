@@ -3434,7 +3434,9 @@ void display_manager_switch_view(View *view) {
   if (!call) return;
   call->fn = dm_switch_async_cb;
   call->arg = view;
-  display_manager_lvgl_async_call(dm_run_on_lvgl_async_cb, call);
+  if (display_manager_lvgl_async_call(dm_run_on_lvgl_async_cb, call) != LV_RES_OK) {
+    free(call);
+  }
 }
 
 bool display_manager_switch_view_and_wait_for_refresh(View *view) {
@@ -3463,7 +3465,12 @@ bool display_manager_switch_view_and_wait_for_refresh(View *view) {
   call->view = view;
   call->done = done;
 
-  display_manager_lvgl_async_call(dm_switch_wait_async_cb, call);
+  if (display_manager_lvgl_async_call(dm_switch_wait_async_cb, call) != LV_RES_OK) {
+    vSemaphoreDelete(done);
+    free(call);
+    display_manager_switch_view(view);
+    return false;
+  }
   if (xSemaphoreTake(done, pdMS_TO_TICKS(2000)) != pdTRUE) {
     ESP_LOGW(TAG, "Timed out waiting for first view refresh");
     return false;

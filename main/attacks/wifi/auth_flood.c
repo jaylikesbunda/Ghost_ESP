@@ -189,7 +189,7 @@ static void auth_flood_task(void *param) {
         }
     }
     auth_flood_task_handle = NULL;
-    vTaskDelete(NULL);
+    vTaskDeleteWithCaps(NULL);
 }
 
 void auth_flood_start(void) {
@@ -242,7 +242,7 @@ void auth_flood_start(void) {
         glog("Auth Flood failed to start (attack=%ld)\n", (long)attack_rc);
         auth_flood_running = false;
         if (auth_flood_task_handle) {
-            vTaskDelete(auth_flood_task_handle);
+            vTaskDeleteWithCaps(auth_flood_task_handle);
             auth_flood_task_handle = NULL;
         }
         esp_wifi_stop();
@@ -272,7 +272,7 @@ void auth_flood_stop(void) {
     if (auth_flood_task_handle) {
         TaskHandle_t temp_handle = auth_flood_task_handle;
         auth_flood_task_handle = NULL;
-        vTaskDelete(temp_handle);
+        vTaskDeleteWithCaps(temp_handle);
     }
 
     esp_wifi_stop();

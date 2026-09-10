@@ -185,6 +185,7 @@ static void script_task_fn(void *arg) {
     }
     xSemaphoreGive(s_runtime_mutex);
 done:
+    free(task_args);
     xSemaphoreTake(s_runtime_mutex, portMAX_DELAY);
     if (s_rt) {
         ghostscript_runtime_t *rt = s_rt;

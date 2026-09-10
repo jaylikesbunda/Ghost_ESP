@@ -82,7 +82,7 @@ void discover_task(void *pvParameter) {
         UBaseType_t hwm = uxTaskGetStackHighWaterMark(NULL);
         glog("discover_task min stack free: %u words\n", (unsigned)hwm);
     }
-    vTaskDelete(NULL);
+    vTaskDeleteWithCaps(NULL);
 }
 
 

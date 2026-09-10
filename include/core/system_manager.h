@@ -42,29 +42,24 @@ bool system_manager_set_task_priority(const char *task_name,
 void system_manager_list_tasks();
 
 // Create a task with PSRAM-preferred stack allocation.
-// Tries PSRAM first, falls back to internal RAM. Always uses xTaskCreateStatic
-// so the caller gets a valid handle for xTaskNotify etc.
+// Tries PSRAM first, falls back to internal RAM. Uses the caps-aware allocator
+// so the created task MUST be deleted with vTaskDeleteWithCaps() (including
+// self-deletion from inside the task).
 #include "esp_heap_caps.h"
+#include "freertos/idf_additions.h"
 
 static inline BaseType_t xTaskCreate_psram(
     TaskFunction_t fn, const char *name, uint32_t stack_bytes,
     void *arg, UBaseType_t pri, TaskHandle_t *handle_out)
 {
 #if CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY
-    StackType_t *stack = (StackType_t *)heap_caps_malloc(stack_bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    if (stack) {
-        StaticTask_t *tcb = (StaticTask_t *)heap_caps_malloc(sizeof(StaticTask_t), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-        if (tcb) {
-            TaskHandle_t h = xTaskCreateStatic(fn, name, stack_bytes, arg, pri, stack, tcb);
-            if (h) { if (handle_out) *handle_out = h; return pdPASS; }
-            heap_caps_free(stack); heap_caps_free(tcb);
-            // fall through to internal
-        } else {
-            heap_caps_free(stack);
-        }
+    if (xTaskCreateWithCaps(fn, name, stack_bytes, arg, pri, handle_out,
+                            MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) == pdPASS) {
+        return pdPASS;
     }
 #endif
-    return xTaskCreate(fn, name, stack_bytes, arg, pri, handle_out);
+    return xTaskCreateWithCaps(fn, name, stack_bytes, arg, pri, handle_out,
+                               MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
 }
 
 #endif // SYSTEM_MANAGER_H

@@ -481,7 +481,7 @@ static void arp_poison_task(void *arg)
             vTaskDelay(pdMS_TO_TICKS(100));
     }
     s_poison_task = NULL;
-    vTaskDelete(NULL);
+    vTaskDeleteWithCaps(NULL);
 }
 
 // DNS proxy: recv query → extract domain → forward to 8.8.8.8 → relay answer.
@@ -495,7 +495,7 @@ static void dns_proxy_task(void *arg)
     if (lsock < 0) {
         glog("[ARP Poison] DNS socket failed: %d\n", errno);
         s_dns_task = NULL;
-        vTaskDelete(NULL);
+        vTaskDeleteWithCaps(NULL);
         return;
     }
 
@@ -511,7 +511,7 @@ static void dns_proxy_task(void *arg)
         glog("[ARP Poison] DNS bind failed: %d\n", errno);
         close(lsock);
         s_dns_task = NULL;
-        vTaskDelete(NULL);
+        vTaskDeleteWithCaps(NULL);
         return;
     }
 
@@ -564,7 +564,7 @@ static void dns_proxy_task(void *arg)
     close(fsock);
     close(lsock);
     s_dns_task = NULL;
-    vTaskDelete(NULL);
+    vTaskDeleteWithCaps(NULL);
 }
 
 #define FWD_BUF_SIZE 512
@@ -574,7 +574,7 @@ static void packet_forwarder_task(void *arg)
     if (sock < 0) {
         glog("[ARP Poison] Raw socket failed: %d\n", errno);
         s_fwd_task = NULL;
-        vTaskDelete(NULL);
+        vTaskDeleteWithCaps(NULL);
         return;
     }
 
@@ -586,7 +586,7 @@ static void packet_forwarder_task(void *arg)
         glog("[ARP Poison] Forwarder OOM\n");
         close(sock);
         s_fwd_task = NULL;
-        vTaskDelete(NULL);
+        vTaskDeleteWithCaps(NULL);
         return;
     }
 
@@ -689,7 +689,7 @@ static void packet_forwarder_task(void *arg)
     free(buf);
     close(sock);
     s_fwd_task = NULL;
-    vTaskDelete(NULL);
+    vTaskDeleteWithCaps(NULL);
 }
 
 static void passive_discovery_task(void *arg)
@@ -698,7 +698,7 @@ static void passive_discovery_task(void *arg)
     if (sock < 0) {
         glog("[ARP Poison] Passive discovery socket failed: %d\n", errno);
         s_passive_task = NULL;
-        vTaskDelete(NULL);
+        vTaskDeleteWithCaps(NULL);
         return;
     }
 
@@ -735,7 +735,7 @@ static void passive_discovery_task(void *arg)
 
     close(sock);
     s_passive_task = NULL;
-    vTaskDelete(NULL);
+    vTaskDeleteWithCaps(NULL);
 }
 
 // ---------------------------------------------------------------------------
@@ -877,10 +877,10 @@ esp_err_t eth_arp_poison_stop(void)
     for (int i = 0; i < 30 && (s_poison_task || s_dns_task || s_fwd_task || s_passive_task); i++)
         vTaskDelay(pdMS_TO_TICKS(100));
 
-    if (s_poison_task)   { vTaskDelete(s_poison_task);   s_poison_task   = NULL; }
-    if (s_dns_task)      { vTaskDelete(s_dns_task);      s_dns_task      = NULL; }
-    if (s_fwd_task)      { vTaskDelete(s_fwd_task);      s_fwd_task      = NULL; }
-    if (s_passive_task)  { vTaskDelete(s_passive_task);  s_passive_task  = NULL; }
+    if (s_poison_task)   { vTaskDeleteWithCaps(s_poison_task);   s_poison_task   = NULL; }
+    if (s_dns_task)      { vTaskDeleteWithCaps(s_dns_task);      s_dns_task      = NULL; }
+    if (s_fwd_task)      { vTaskDeleteWithCaps(s_fwd_task);      s_fwd_task      = NULL; }
+    if (s_passive_task)  { vTaskDeleteWithCaps(s_passive_task);  s_passive_task  = NULL; }
 
     if (s_hosts_mutex) {
         vSemaphoreDelete(s_hosts_mutex);

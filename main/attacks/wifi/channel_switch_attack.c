@@ -140,7 +140,7 @@ static void csa_attack_task(void *param) {
     }
     
     csa_task_handle = NULL;
-    vTaskDelete(NULL);
+    vTaskDeleteWithCaps(NULL);
 }
 
 void channel_switch_attack_start(void) {
@@ -199,7 +199,7 @@ void channel_switch_attack_stop(void) {
         }
         
         if (csa_task_handle != NULL) {
-            vTaskDelete(csa_task_handle);
+            vTaskDeleteWithCaps(csa_task_handle);
             csa_task_handle = NULL;
         }
         

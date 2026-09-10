@@ -527,7 +527,7 @@ static void eth_fp_task(void *arg) {
     s_fp_running     = false;
     s_fp_done        = true;
     s_fp_task_handle = NULL;
-    vTaskDelete(NULL);
+    vTaskDeleteWithCaps(NULL);
 }
 
 void eth_fingerprint_start_async(void) {

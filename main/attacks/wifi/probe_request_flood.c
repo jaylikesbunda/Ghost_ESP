@@ -135,7 +135,7 @@ static void probe_flood_task(void *param) {
         }
     }
     probe_flood_task_handle = NULL;
-    vTaskDelete(NULL);
+    vTaskDeleteWithCaps(NULL);
 }
 
 void probe_request_flood_start(void) {
@@ -188,7 +188,7 @@ void probe_request_flood_start(void) {
         glog("Probe Request Flood failed to start (attack=%ld)\n", (long)attack_rc);
         probe_flood_running = false;
         if (probe_flood_task_handle) {
-            vTaskDelete(probe_flood_task_handle);
+            vTaskDeleteWithCaps(probe_flood_task_handle);
             probe_flood_task_handle = NULL;
         }
         esp_wifi_stop();
@@ -218,7 +218,7 @@ void probe_request_flood_stop(void) {
     if (probe_flood_task_handle) {
         TaskHandle_t temp_handle = probe_flood_task_handle;
         probe_flood_task_handle = NULL;
-        vTaskDelete(temp_handle);
+        vTaskDeleteWithCaps(temp_handle);
     }
 
     esp_wifi_stop();

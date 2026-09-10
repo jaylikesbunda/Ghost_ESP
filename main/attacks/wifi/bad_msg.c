@@ -198,7 +198,7 @@ static void bad_msg_task(void *param) {
         }
     }
     bad_msg_task_handle = NULL;
-    vTaskDelete(NULL);
+    vTaskDeleteWithCaps(NULL);
 }
 
 void bad_msg_start(void) {
@@ -257,7 +257,7 @@ void bad_msg_start(void) {
         glog("Bad Msg failed to start (attack=%ld)\n", (long)attack_rc);
         bad_msg_running = false;
         if (bad_msg_task_handle) {
-            vTaskDelete(bad_msg_task_handle);
+            vTaskDeleteWithCaps(bad_msg_task_handle);
             bad_msg_task_handle = NULL;
         }
         esp_wifi_stop();
@@ -287,7 +287,7 @@ void bad_msg_stop(void) {
     if (bad_msg_task_handle) {
         TaskHandle_t temp_handle = bad_msg_task_handle;
         bad_msg_task_handle = NULL;
-        vTaskDelete(temp_handle);
+        vTaskDeleteWithCaps(temp_handle);
     }
 
     esp_wifi_stop();
