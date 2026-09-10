@@ -73,6 +73,7 @@ void handle_script_cmd(int argc, char **argv);
 #if !defined(CONFIG_IDF_TARGET_ESP32S2) && !defined(GHOSTESP_NO_NATIVE_BLE)
 // BLE, AirTag, Flipper, GATT, Chameleon, and BLE spam
 void handle_ble_scan_cmd(int argc, char **argv);
+void handle_ble_detect_cmd(int argc, char **argv);
 void handle_ble_wardriving(int argc, char **argv);
 #if !defined(CONFIG_IDF_TARGET_ESP32P4)
 void handle_dualwd(int argc, char **argv);

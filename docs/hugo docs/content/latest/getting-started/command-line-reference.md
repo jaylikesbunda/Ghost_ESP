@@ -18,7 +18,7 @@ toc: true
 - (for developers) **`mem [dump|trace <start|stop|dump>]`** — Print heap stats, dump allocation state, or control heap tracing.
 - **`reboot`** — Soft restart the device.
 - **`timezone <TZ>`** — Set timezone, e.g., `timezone EST5EDT,M3.2.0,M11.1.0`.
-- **`stop`** — Stops all active attacks, scans, and background tasks. Also restarts Wi-Fi if it was suspended by BLE.
+- **`stop`** — Stops all active attacks, scans, and background tasks, including BLE device detect and tracking. Also restarts Wi-Fi if it was suspended by BLE.
 - **`stopscan`** — Alias for `scanap -stop`; stops an active AP scan.
 - **`congestion`** — Display Wi-Fi channel congestion chart showing activity across all channels.
 
@@ -65,7 +65,7 @@ These commands are only present on builds that enable ESP-IDF core dumps **to fl
   - `-p` — Probe request flood. Broadcasts spoofed probe requests.
   - `-b` — Bad message attack (EAPOL key install).
   - `-a` — Authentication flood. Sends mass authentication frames to the AP.
-- **`stop`** — Stops all active attacks, scans, and background tasks.
+- **`stop`** — Stops all active attacks, scans, and background tasks, including BLE device detect and tracking.
 - **`stopdeauth`** / **`stopspam`** — Halt active attacks or beacon floods.
 - **`beaconspam [mode]`** — Broadcast spoof SSIDs (`-r`, `-rr`, `-l`, or custom text).
 - **`beaconadd <ssid>`** — Add an SSID to the beacon spam list.
@@ -100,7 +100,15 @@ These commands are only present on builds that enable ESP-IDF core dumps **to fl
 
 ### Discovery
 
-- **`blescan [-f|-ds|-a|-r|-adv|-g|-s]`** — Scan for BLE devices, Flippers, spam detectors, raw advertising, or GATT services; `-s` stops.
+- **`blescan [-f|-ds|-a|-r|-adv|-g|-s]`** — Scan for BLE devices, Flippers, spam detectors, raw advertising, or GATT services. `-s` stops the active scan, including a running `bledetect`.
+- **`bledetect [-s|-l|-c|-i|-t <idx>|-u|-sp <idx>|-h]`** — Detect trackers, skimmers, and beacons by advertisement signature (AirTags, Flippers, Tiles, SmartTags, Chipolo, AirPods, Fast Pair, exposure beacons, and more). Bare `bledetect` starts the scan.
+  - `-l` — List discovered devices as `[index] type | name or MAC | RSSI dBm`. A `*` marks the tracked device.
+  - `-t <idx>` / `-u` — Track a device by index (its live RSSI is logged as it is re-seen) or stop tracking.
+  - `-sp <idx>` — Spoof a detected AirTag; use `stopspoof` to end it.
+  - `-s` / `-c` / `-i` — Stop the scan but keep results, clear stored results (stop the scan first), or show scan state and device count.
+  - `-h` — Show usage.
+
+  On-device: **BLE → Detect Devices**, then **List Detected Devices**, provides the same detection with per-device **Track** and **Spoof** actions.
 - **`blewardriving [-s]`** — Log BLE beacons with GPS metadata.
 
 ### Spoofing

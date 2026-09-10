@@ -480,6 +480,7 @@ void register_commands() {
 
 #if !defined(CONFIG_IDF_TARGET_ESP32S2) && !defined(GHOSTESP_NO_NATIVE_BLE)
     register_command("blescan", handle_ble_scan_cmd);
+    register_command("bledetect", handle_ble_detect_cmd);
     register_command("blebridge", ble_bridge_handle_command);
     register_command("blewardriving", handle_ble_wardriving);
 #if !defined(CONFIG_IDF_TARGET_ESP32P4)

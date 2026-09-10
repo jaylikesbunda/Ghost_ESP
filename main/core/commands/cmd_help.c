@@ -207,6 +207,18 @@ void handle_help(int argc, char **argv) {
         glog("        -g   : Start GATT scanner for connectable devices\n");
         glog("        -r   : Scan for raw BLE packets\n");
         glog("        -s   : Stop BLE scanning\n\n");
+        glog("bledetect\n");
+        glog("    Description: Detect trackers, skimmers and beacons by signature\n");
+        glog("    Usage: bledetect [-s|-l|-c|-i|-t <index>|-u|-sp <index>|-h]\n");
+        glog("    Arguments:\n");
+        glog("        (none)      : Begin scanning for detectable BLE devices\n");
+        glog("        -s          : Stop the scan, keeping discovered devices\n");
+        glog("        -l          : List discovered devices with type, name/MAC and RSSI\n");
+        glog("        -c          : Drop stored results (scan must be stopped)\n");
+        glog("        -i          : Show scan state, device count and tracking info\n");
+        glog("        -t <index>  : Follow one device and log its live RSSI\n");
+        glog("        -u          : Stop following the tracked device\n");
+        glog("        -sp <index> : Advertise as a discovered AirTag; 'stopspoof' ends it\n\n");
         glog("blespam\n");
         glog("    Description: Start BLE advertisement spam attacks.\n");
         glog("    Usage: blespam [OPTION]\n");

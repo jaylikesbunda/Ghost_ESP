@@ -35,6 +35,7 @@
 #include "managers/views/terminal_screen.h"
 #include "managers/wifi_manager.h"
 #include "managers/zigbee_manager.h"
+#include "scans/ble/device_detect_scan.h"
 #include "scans/wifi/arp_scan.h"
 #include "sdkconfig.h"
 #include "vendor/GPS/gps_logger.h"
@@ -176,6 +177,11 @@ void handle_stop_flipper(int argc, char **argv) {
         (void)badble_manager_stop();
     }
 #endif
+    if (ble_device_detect_is_active() || ble_device_detect_is_tracking()) {
+        glog("Stopped BLE device detect.\n");
+        stopped_any = true;
+    }
+    ble_device_detect_stop();
     ble_stop();
     ble_unregister_handler(ble_wardriving_callback);
     ble_set_suspend_allowed(true);
