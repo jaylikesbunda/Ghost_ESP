@@ -13,6 +13,7 @@ idf_component_register(SRCS ${LUA_SOURCES}
 
 target_compile_definitions(${COMPONENT_LIB} PRIVATE
     LUA_COMPAT_5_3
+    LUA_NO_RESERVED_WORDS
 )
 
 target_compile_options(${COMPONENT_LIB} PRIVATE

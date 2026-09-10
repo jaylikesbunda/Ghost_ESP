@@ -71,11 +71,17 @@ void luaX_init (lua_State *L) {
   int i;
   TString *e = luaS_newliteral(L, LUA_ENV);  /* create env name */
   luaC_fix(L, obj2gco(e));  /* never collect this name */
+#if defined(LUA_NO_RESERVED_WORDS)
+  /* Device runtime undumps bytecode only, so the lexer never runs and these
+   * permanently-fixed words are dead weight. Re-enable before loading text. */
+  UNUSED(i);
+#else
   for (i=0; i<NUM_RESERVED; i++) {
     TString *ts = luaS_new(L, luaX_tokens[i]);
     luaC_fix(L, obj2gco(ts));  /* reserved words are never collected */
     ts->extra = cast_byte(i+1);  /* reserved word */
   }
+#endif
 }
 
 

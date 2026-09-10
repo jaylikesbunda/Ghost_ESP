@@ -583,9 +583,10 @@ static void dispatch_event(ghostscript_runtime_t *rt, const char *name, const ch
         for (int i = 1; i <= n; i += 2) {
             lua_rawgeti(rt->L, -1, i);
             if (!lua_isfunction(rt->L, -1)) { lua_pop(rt->L, 1); continue; }
-            /* Filter is at i+1. */
+            /* Filter is at i+1 in the listener table, which is at -2: the
+             * handler function pushed above is at -1. */
             if (i + 1 <= n) {
-                lua_rawgeti(rt->L, -1, i + 1);
+                lua_rawgeti(rt->L, -2, i + 1);
                 if (lua_isnil(rt->L, -1) || lua_isboolean(rt->L, -1)) {
                     lua_pop(rt->L, 1);
                 } else {
@@ -2602,6 +2603,8 @@ static int l_initialize_runtime(lua_State *L) {
     luaL_requiref(L, "table", luaopen_table, 1); lua_pop(L, 1);
     open_math_lite(L);
     register_api(L, rt);
+    lua_gc(L, LUA_GCSETPAUSE, 150);
+    lua_gc(L, LUA_GCCOLLECT);
     lua_newthread(L);
     return 1;
 }

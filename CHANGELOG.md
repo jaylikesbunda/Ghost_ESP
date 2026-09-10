@@ -39,8 +39,11 @@ Untagged entries are by ([@jaylikesbunda](https://github.com/jaylikesbunda)). A 
 - Standardized list/log scrolling with shared helper
 - Standardized view layout and cleanup with shared helpers
 - Mapped IR buttons to theme palette
+- Reduced GhostScript RAM use on across all boards
+- Matched Ethernet dashboard status card to the rounded action rows
 
 ### Fixed
+- Fixed GhostScript crash when an event listener received an event
 - Fixed BadBLE touch-drag scrolling
 - Fixed CrowPanel display startup configs
 - Fixed ESP32-C5 merged firmware failing to boot when flashed at `0x0` by placing the bootloader at the required `0x2000` offset - @yanxke (#395)
