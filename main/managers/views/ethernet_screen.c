@@ -539,13 +539,12 @@ static void eth_stream_rx_cb(uint8_t channel, const uint8_t *data, size_t length
 static lv_obj_t *create_card(lv_obj_t *parent, int width_pct) {
     lv_obj_t *card = lv_obj_create(parent);
     int padding = LV_VER_RES <= 100 ? 3 : (LV_VER_RES <= 160 ? 5 : 8);
+    lv_coord_t radius = settings_get_menu_rounded(&G_Settings) ? GUI_RADIUS_SM : 0;
     lv_obj_set_size(card, LV_PCT(width_pct), LV_SIZE_CONTENT);
     lv_obj_set_style_bg_color(card, lv_color_hex(card_color), 0);
     lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_color(card, lv_color_hex(accent_color), 0);
-    lv_obj_set_style_border_width(card, 1, 0);
-    lv_obj_set_style_border_side(card, LV_BORDER_SIDE_LEFT, 0);
-    lv_obj_set_style_radius(card, 0, 0);
+    lv_obj_set_style_border_width(card, 0, 0);
+    lv_obj_set_style_radius(card, radius, 0);
     lv_obj_set_style_pad_all(card, padding, 0);
     lv_obj_set_style_text_color(card, lv_color_hex(text_color), 0);
     lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
@@ -979,6 +978,8 @@ static void status_timer_cb(lv_timer_t *t) {
 static void build_dashboard(void) {
     // Compact status card (natural height, first item in the flex column)
     lv_obj_t *status_card = create_card(s_content, 100);
+    lv_obj_set_width(status_card, LV_HOR_RES - 2 * GUI_OPTIONS_LIST_PAD_HOR);
+    lv_obj_set_flex_align(s_content, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START);
     s_lbl_status = add_stat_row(status_card, "Status");
     s_lbl_ip     = add_stat_row(status_card, "IP");
     s_lbl_mask   = add_stat_row(status_card, "Mask");
@@ -995,6 +996,7 @@ static void build_dashboard(void) {
         // the parent flex-column drive position; flex-grow fills leftover height
         lv_obj_set_align(list, LV_ALIGN_DEFAULT);
         lv_obj_set_flex_grow(list, 1);
+        lv_obj_set_style_pad_top(list, 0, 0);
         lv_obj_add_flag(list, LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_set_scroll_dir(list, LV_DIR_VER);
         lv_obj_set_scrollbar_mode(list, LV_SCROLLBAR_MODE_AUTO);
@@ -1209,6 +1211,7 @@ static void build_poison_monitor(void) {
     lv_obj_set_style_bg_color(tab_bar, lv_color_hex(card_color), 0);
     lv_obj_set_style_bg_opa(tab_bar, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(tab_bar, 0, 0);
+    lv_obj_set_style_radius(tab_bar, settings_get_menu_rounded(&G_Settings) ? GUI_RADIUS_SM : 0, 0);
     lv_obj_set_style_pad_all(tab_bar, 4, 0);
     lv_obj_clear_flag(tab_bar, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_flex_flow(tab_bar, LV_FLEX_FLOW_ROW);
