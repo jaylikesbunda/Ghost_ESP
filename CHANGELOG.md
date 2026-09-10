@@ -20,6 +20,7 @@ Untagged entries are by ([@jaylikesbunda](https://github.com/jaylikesbunda)). A 
 - Added `dualwd` BLE + WiFi coexistence wardriving (exclusive to PSRAM devices), available from the CLI and GPS menu
 - Added Elecrow CrowPanel 1.28-inch rotary display support with USB Audio volume/mute control
 - Added `mdnssniff` passive local-name sniffer (mDNS/LLMNR/SSDP/NetBIOS) per ARP-discovered host
+- Added a `bledetect` CLI command for the device detect scan with list, track and AirTag spoof actions
 - Added more devices to the BLE detect devices scan
   - Tile trackers. Ported from `gatt_scan.c`, adapted from [Flock-You-Android](https://github.com/MaxwellDPS/Flock-You-Android/blob/main/docs/detections/BLE_TRACKER_DETECTION.md) and [Silabs](https://docs.silabs.com/bluetooth/2.13/bluetooth-code-examples-applications/bluetooth-device-tracking-with-tile)
   - Samsung SmartTag. Adapted from [arxiv 2210.14702](https://arxiv.org/pdf/2210.14702) and [adwatch](https://github.com/bensmith83/adwatch/blob/main/docs/protocols/smarttag.md)
