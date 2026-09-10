@@ -19,6 +19,17 @@ Untagged entries are by ([@jaylikesbunda](https://github.com/jaylikesbunda)). A 
 - Added `dualwd` BLE + WiFi coexistence wardriving (exclusive to PSRAM devices), available from the CLI and GPS menu
 - Added Elecrow CrowPanel 1.28-inch rotary display support with USB Audio volume/mute control
 - Added `mdnssniff` passive local-name sniffer (mDNS/LLMNR/SSDP/NetBIOS) per ARP-discovered host
+- Added more devices to the BLE detect devices scan
+  - Tile trackers. Ported from `gatt_scan.c`, adapted from [Flock-You-Android](https://github.com/MaxwellDPS/Flock-You-Android/blob/main/docs/detections/BLE_TRACKER_DETECTION.md) and [Silabs](https://docs.silabs.com/bluetooth/2.13/bluetooth-code-examples-applications/bluetooth-device-tracking-with-tile)
+  - Samsung SmartTag. Adapted from [arxiv 2210.14702](https://arxiv.org/pdf/2210.14702) and [adwatch](https://github.com/bensmith83/adwatch/blob/main/docs/protocols/smarttag.md)
+  - Chipolo. Ported from `gatt_scan.c`
+  - Apple AirPods with per-model variants. Adapted from [Theengs](https://github.com/theengs/decoder/blob/development/src/devices/APPLEAIRPODS_json.h) and [Bruce ble_spam](https://github.com/BruceDevices/firmware/blob/main/src/modules/ble/ble_spam.cpp)
+  - Apple Watch. Adapted from [Theengs](https://github.com/theengs/decoder/blob/development/src/devices/APPLEWATCH_json.h)
+  - Generic FindMy clones. Ported from `gatt_scan.c`
+  - Fast Pair / Find Hub accessories. Adapted from the [Google spec](https://developers.google.com/nearby/fast-pair/specifications/extensions/fmdn)
+  - Hearing aids. Adapted from [Android docs](https://source.android.com/docs/core/connect/bluetooth/asha)
+  - Exposure beacons. Adapted from [Theengs](https://github.com/theengs/decoder/blob/development/src/devices/GAEN_json.h)
+  - Chameleon Ultra. Adapted from `chameleon_manager.c` and [Nordic docs](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/libraries/bluetooth_services/services/nus.html)
 
 ### Fixed
 - Fixed BadBLE touch-drag scrolling

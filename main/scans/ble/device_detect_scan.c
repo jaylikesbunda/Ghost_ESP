@@ -31,6 +31,26 @@
 #define FLIPPER_UUID_BLACK       0x3081
 #define FLIPPER_UUID_TRANSPARENT 0x3083
 
+// Verified tracker / accessory identifiers.
+// Apple/Samsung/Tile company IDs are Bluetooth SIG-assigned. Service UUIDs
+// FD59/FD5A (SmartTag), FEED/FEEC (Tile), FE2C (Fast Pair), FDF0 (ASHA),
+// FD6F (GAEN) are SIG-assigned member UUIDs. Apple Continuity subtype bytes
+// (071901 AirPods, 1005 Watch, 1219 FindMy) are reverse-engineered and
+// cross-checked against Theengs Decoder and Flipper Zero ble_spam.
+#define APPLE_COMPANY_ID   0x004C
+#define SAMSUNG_COMPANY_ID 0x0075
+#define TILE_COMPANY_ID_A  0x00D8
+#define TILE_COMPANY_ID_B  0x00C7
+#define CHIPOLO_COMPANY_ID 0x0231
+
+#define UUID_TILE_FEED    0xFEED
+#define UUID_TILE_FEEC    0xFEEC
+#define UUID_SAMSUNG_FD59 0xFD59
+#define UUID_SAMSUNG_FD5A 0xFD5A
+#define UUID_FASTPAIR     0xFE2C
+#define UUID_ASHA         0xFDF0
+#define UUID_GAEN         0xFD6F
+
 #define BLE_AD_TYPE_16BIT_UUID_COMPLETE  0x03
 #define BLE_AD_TYPE_16BIT_UUID_PARTIAL   0x02
 #define BLE_AD_TYPE_32BIT_UUID_COMPLETE  0x05
@@ -199,6 +219,133 @@ static bool is_airtag_pattern(const uint8_t *payload, size_t len) {
     return false;
 }
 
+static bool adv_has_uuid16(const uint8_t *data, size_t len, uint16_t uuid) {
+    if (data == NULL || len < 2) {
+        return false;
+    }
+    const uint8_t *p = data;
+    size_t remaining = len;
+    while (remaining > 1) {
+        uint8_t field_len = p[0];
+        if (field_len == 0 || (size_t)(field_len + 1) > remaining) {
+            break;
+        }
+        uint8_t field_type = p[1];
+        const uint8_t *payload = p + 2;
+        size_t payload_len = (size_t)(field_len - 1);
+        if (field_type == BLE_AD_TYPE_16BIT_UUID_PARTIAL ||
+            field_type == BLE_AD_TYPE_16BIT_UUID_COMPLETE) {
+            for (size_t i = 0; i + 2 <= payload_len; i += 2) {
+                if (read_u16_le(payload + i) == uuid) {
+                    return true;
+                }
+            }
+        } else if (field_type == BLE_AD_TYPE_SERVICE_DATA_16BIT && payload_len >= 2) {
+            if (read_u16_le(payload) == uuid) {
+                return true;
+            }
+        }
+        remaining -= (size_t)(field_len + 1);
+        p += (size_t)(field_len + 1);
+    }
+    return false;
+}
+
+static bool adv_mfg_match(const uint8_t *data, size_t len, uint16_t company,
+                          const uint8_t *prefix, size_t prefix_len) {
+    if (data == NULL || prefix == NULL || prefix_len == 0) {
+        return false;
+    }
+    const uint8_t *p = data;
+    size_t remaining = len;
+    while (remaining > 1) {
+        uint8_t field_len = p[0];
+        if (field_len == 0 || (size_t)(field_len + 1) > remaining) {
+            break;
+        }
+        if (p[1] == 0xFF && field_len >= 3) {
+            uint16_t cid = read_u16_le(p + 2);
+            size_t mfg_len = (size_t)(field_len - 3);
+            const uint8_t *mfg = p + 4;
+            if (cid == company && mfg_len >= prefix_len && memcmp(mfg, prefix, prefix_len) == 0) {
+                return true;
+            }
+        }
+        remaining -= (size_t)(field_len + 1);
+        p += (size_t)(field_len + 1);
+    }
+    return false;
+}
+
+static bool adv_has_company(const uint8_t *data, size_t len, uint16_t company) {
+    if (data == NULL) {
+        return false;
+    }
+    const uint8_t *p = data;
+    size_t remaining = len;
+    while (remaining > 1) {
+        uint8_t field_len = p[0];
+        if (field_len == 0 || (size_t)(field_len + 1) > remaining) {
+            break;
+        }
+        if (p[1] == 0xFF && field_len >= 3 && read_u16_le(p + 2) == company) {
+            return true;
+        }
+        remaining -= (size_t)(field_len + 1);
+        p += (size_t)(field_len + 1);
+    }
+    return false;
+}
+
+// Apple Continuity subtype prefixes (after the 0x4C00 company ID).
+static const uint8_t s_apple_airpods_prefix[] = {0x07, 0x19, 0x01};
+static const uint8_t s_apple_watch_prefix[] = {0x10, 0x05};
+// Generic (non-Apple-vendor) FindMy-compatible beacon prefix.
+static const uint8_t s_generic_findmy_prefix[] = {0x12};
+#define GENERIC_FINDMY_COMPANY_ID 0x004F
+
+static const struct {
+    uint16_t id;
+    const char *name;
+} s_airpods_models[] = {
+    {0x0220, "AirPods 1st gen"},
+    {0x0F20, "AirPods 2nd gen"},
+    {0x1320, "AirPods 3rd gen"},
+    {0x0E20, "AirPods Pro"},
+    {0x1420, "AirPods Pro 2"},
+    {0x2420, "AirPods Pro 2 USB-C"},
+    {0x0A20, "AirPods Max"},
+    {0x0620, "Beats Solo3"},
+    {0x0520, "BeatsX"},
+};
+
+static const char *airpods_model_name(const uint8_t *data, size_t len) {
+    if (data == NULL) {
+        return "AirPods";
+    }
+    const uint8_t *p = data;
+    size_t remaining = len;
+    while (remaining > 1) {
+        uint8_t field_len = p[0];
+        if (field_len == 0 || (size_t)(field_len + 1) > remaining) {
+            break;
+        }
+        if (p[1] == 0xFF && field_len >= 8 && read_u16_le(p + 2) == APPLE_COMPANY_ID &&
+            p[4] == 0x07 && p[5] == 0x19 && p[6] == 0x01) {
+            uint16_t model = read_u16_le(p + 7);
+            for (size_t i = 0; i < sizeof(s_airpods_models) / sizeof(s_airpods_models[0]); i++) {
+                if (s_airpods_models[i].id == model) {
+                    return s_airpods_models[i].name;
+                }
+            }
+            return "AirPods";
+        }
+        remaining -= (size_t)(field_len + 1);
+        p += (size_t)(field_len + 1);
+    }
+    return "AirPods";
+}
+
 static bool is_suspicious_skimmer_name(const char *name) {
     if (name == NULL || name[0] == '\0') {
         return false;
@@ -221,6 +368,26 @@ const char *ble_device_detect_type_to_string(BLEDetectDeviceType type) {
         return "Flipper";
     case BLE_DETECT_DEVICE_SKIMMER:
         return "Skimmer Suspect";
+    case BLE_DETECT_DEVICE_TILE:
+        return "Tile";
+    case BLE_DETECT_DEVICE_SMARTTAG:
+        return "SmartTag";
+    case BLE_DETECT_DEVICE_CHIPOLO:
+        return "Chipolo";
+    case BLE_DETECT_DEVICE_AIRPODS:
+        return "AirPods";
+    case BLE_DETECT_DEVICE_APPLE_WATCH:
+        return "Apple Watch";
+    case BLE_DETECT_DEVICE_FINDMY:
+        return "FindMy";
+    case BLE_DETECT_DEVICE_FASTPAIR:
+        return "Fast Pair";
+    case BLE_DETECT_DEVICE_HEARING_AID:
+        return "Hearing Aid";
+    case BLE_DETECT_DEVICE_GAEN:
+        return "Exposure Beacon";
+    case BLE_DETECT_DEVICE_CHAMELEON:
+        return "Chameleon";
     default:
         return "BLE Device";
     }
@@ -304,8 +471,49 @@ static void ble_device_detect_callback(struct ble_gap_event *event, size_t len) 
     detected_subtype = detect_flipper_type_from_adv(event->disc.data, event->disc.length_data);
     if (detected_subtype != NULL) {
         detected_type = BLE_DETECT_DEVICE_FLIPPER;
+    } else if (adv_mfg_match(event->disc.data, event->disc.length_data, APPLE_COMPANY_ID,
+                             s_apple_airpods_prefix, sizeof(s_apple_airpods_prefix))) {
+        detected_type = BLE_DETECT_DEVICE_AIRPODS;
+        detected_subtype = airpods_model_name(event->disc.data, event->disc.length_data);
+    } else if (adv_mfg_match(event->disc.data, event->disc.length_data, APPLE_COMPANY_ID,
+                             s_apple_watch_prefix, sizeof(s_apple_watch_prefix))) {
+        detected_type = BLE_DETECT_DEVICE_APPLE_WATCH;
+        detected_subtype = "Watch";
     } else if (is_airtag_pattern(event->disc.data, event->disc.length_data)) {
         detected_type = BLE_DETECT_DEVICE_AIRTAG;
+    } else if (adv_has_uuid16(event->disc.data, event->disc.length_data, UUID_TILE_FEED) ||
+               adv_has_uuid16(event->disc.data, event->disc.length_data, UUID_TILE_FEEC) ||
+               adv_has_company(event->disc.data, event->disc.length_data, TILE_COMPANY_ID_A) ||
+               adv_has_company(event->disc.data, event->disc.length_data, TILE_COMPANY_ID_B) ||
+               (adv_name[0] != '\0' && strstr(adv_name, "Tile") != NULL)) {
+        detected_type = BLE_DETECT_DEVICE_TILE;
+        detected_subtype = "Tracker";
+    } else if (adv_has_uuid16(event->disc.data, event->disc.length_data, UUID_SAMSUNG_FD59) ||
+               adv_has_uuid16(event->disc.data, event->disc.length_data, UUID_SAMSUNG_FD5A) ||
+               (adv_name[0] != '\0' && (strstr(adv_name, "SmartTag") != NULL ||
+                                        strstr(adv_name, "Smart Tag") != NULL))) {
+        detected_type = BLE_DETECT_DEVICE_SMARTTAG;
+        detected_subtype = "SmartTag";
+    } else if (adv_has_company(event->disc.data, event->disc.length_data, CHIPOLO_COMPANY_ID) ||
+               (adv_name[0] != '\0' && strstr(adv_name, "Chipolo") != NULL)) {
+        detected_type = BLE_DETECT_DEVICE_CHIPOLO;
+        detected_subtype = "Spot";
+    } else if (adv_mfg_match(event->disc.data, event->disc.length_data, GENERIC_FINDMY_COMPANY_ID,
+                             s_generic_findmy_prefix, sizeof(s_generic_findmy_prefix))) {
+        detected_type = BLE_DETECT_DEVICE_FINDMY;
+        detected_subtype = "Clone";
+    } else if (adv_has_uuid16(event->disc.data, event->disc.length_data, UUID_FASTPAIR)) {
+        detected_type = BLE_DETECT_DEVICE_FASTPAIR;
+        detected_subtype = "Fast Pair";
+    } else if (adv_has_uuid16(event->disc.data, event->disc.length_data, UUID_ASHA)) {
+        detected_type = BLE_DETECT_DEVICE_HEARING_AID;
+        detected_subtype = "ASHA";
+    } else if (adv_has_uuid16(event->disc.data, event->disc.length_data, UUID_GAEN)) {
+        detected_type = BLE_DETECT_DEVICE_GAEN;
+        detected_subtype = "Exposure";
+    } else if (adv_name[0] != '\0' && strstr(adv_name, "ChameleonUltra") != NULL) {
+        detected_type = BLE_DETECT_DEVICE_CHAMELEON;
+        detected_subtype = "Ultra";
     } else if (is_suspicious_skimmer_name(adv_name)) {
         detected_type = BLE_DETECT_DEVICE_SKIMMER;
         detected_subtype = "Name Match";
@@ -397,6 +605,20 @@ static void ble_device_detect_callback(struct ble_gap_event *event, size_t len) 
         rgb_manager_pulse_async(&rgb_manager, 0, 0, 255);
     } else if (device->type == BLE_DETECT_DEVICE_SKIMMER) {
         rgb_manager_pulse_async(&rgb_manager, 255, 0, 0);
+    } else if (device->type == BLE_DETECT_DEVICE_TILE ||
+               device->type == BLE_DETECT_DEVICE_SMARTTAG ||
+               device->type == BLE_DETECT_DEVICE_CHIPOLO ||
+               device->type == BLE_DETECT_DEVICE_FINDMY) {
+        rgb_manager_pulse_async(&rgb_manager, 0, 255, 255);
+    } else if (device->type == BLE_DETECT_DEVICE_AIRPODS ||
+               device->type == BLE_DETECT_DEVICE_APPLE_WATCH) {
+        rgb_manager_pulse_async(&rgb_manager, 255, 255, 255);
+    } else if (device->type == BLE_DETECT_DEVICE_FASTPAIR ||
+               device->type == BLE_DETECT_DEVICE_HEARING_AID ||
+               device->type == BLE_DETECT_DEVICE_GAEN) {
+        rgb_manager_pulse_async(&rgb_manager, 0, 255, 0);
+    } else if (device->type == BLE_DETECT_DEVICE_CHAMELEON) {
+        rgb_manager_pulse_async(&rgb_manager, 255, 0, 255);
     }
 
     if (s_tracking.active && device->type == s_tracking.type &&
