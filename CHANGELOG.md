@@ -34,6 +34,7 @@ Untagged entries are by ([@jaylikesbunda](https://github.com/jaylikesbunda)). A 
   - Chameleon Ultra. Adapted from `chameleon_manager.c` and [Nordic docs](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/libraries/bluetooth_services/services/nus.html)
 
 ### Changed
+- Defaulted the terminal to white small text and improved readability with padding, spacing and colour-coded output
 - Reorganized Settings menu categories for easier navigation
 - Smoothed and improved stability and reliability of the Track RSSI readout and added a warmer/colder trend arrow
 - Standardized bottom touch bar via shared helper

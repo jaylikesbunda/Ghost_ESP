@@ -76,6 +76,21 @@ static bool terminal_dualcomm_only = false;
 #define BUTTON_PADDING 3
 #endif
 
+/* Terminal readout typography. The scroller carries the inset, so the canvas
+ * and its wrap width follow the padding automatically instead of every draw
+ * coordinate having to subtract it. Rows get a little leading, and wrapped
+ * continuations are indented so they do not read as new lines. */
+#define TERMINAL_PAD_H       (GUI_GRID * 2)
+#define TERMINAL_PAD_V       (GUI_GRID)
+#define TERMINAL_LINE_GAP    (GUI_GRID / 2)
+#define TERMINAL_CONT_INDENT (GUI_GRID * 2)
+
+/* Semantic line colors, chosen to stay legible on the terminal's black
+ * background whatever theme is active. */
+#define TERMINAL_COLOR_ERROR   0xFF5555
+#define TERMINAL_COLOR_WARNING 0xFFC24B
+#define TERMINAL_COLOR_PROMPT  0x6CB6FF
+
 static lv_obj_t *back_btn = NULL;
 static lv_obj_t *input_label = NULL;
 lv_timer_t *terminal_update_timer = NULL;
@@ -469,6 +484,90 @@ static bool terminal_should_use_split_view(void) {
     return terminal_dualcomm_only && settings_get_ghostlink_split_view(&G_Settings);
 }
 
+/* Number of display rows a logical line occupies at the layout widths. Mirrors
+ * terminal_draw_rows exactly, so a cached height can never disagree with what
+ * is actually painted. */
+static uint8_t terminal_split_rows(const char *txt, const lv_font_t *font,
+                                   lv_coord_t letter_space, lv_coord_t first_w,
+                                   lv_coord_t cont_w) {
+  if (!txt || txt[0] == '\0') return 1;
+
+  uint32_t offset = 0;
+  uint8_t rows = 0;
+  lv_coord_t w = first_w;
+
+  while (txt[offset] != '\0' && rows < 255) {
+    uint32_t step = _lv_txt_get_next_line(&txt[offset], font, letter_space, w,
+                                          NULL, LV_TEXT_FLAG_NONE);
+    if (step == 0) break; // never spin on a non-advancing split
+    offset += step;
+    rows++;
+    w = cont_w;
+  }
+  return rows ? rows : 1;
+}
+
+/* Semantic color for one output line. The user's chosen color is the base;
+ * errors and warnings borrow fixed high-contrast colors, and the echoed prompt
+ * is tinted so a typed command stands out from its output. */
+static lv_color_t terminal_line_color(const char *text, lv_color_t base) {
+  if (!text || text[0] == '\0') return base;
+
+  /* ESP-IDF logs use "E (tag)" / "W (tag)"; GhostESP prints Error/Failed text
+   * and "W: " lines. */
+  if (strncmp(text, "E (", 3) == 0 || strstr(text, "Error") != NULL ||
+      strstr(text, "Failed") != NULL || strstr(text, "failed") != NULL) {
+    return lv_color_hex(TERMINAL_COLOR_ERROR);
+  }
+  if (strncmp(text, "W (", 3) == 0 || strncmp(text, "W: ", 3) == 0 ||
+      strstr(text, "Warning") != NULL) {
+    return lv_color_hex(TERMINAL_COLOR_WARNING);
+  }
+  if (strncmp(text, "> ", 2) == 0) {
+    return lv_color_hex(TERMINAL_COLOR_PROMPT);
+  }
+  return base;
+}
+
+/* Paint one logical line. lv_draw_label wraps text to the area width but clips
+ * only to the draw context, so a wrapped line cannot be split by handing it
+ * narrower areas. Each display row is drawn on its own instead: the byte after
+ * the row is temporarily terminated in the arena and restored once painted, and
+ * continuation rows are indented so a wrap reads as a wrap. */
+static void terminal_draw_rows(lv_draw_ctx_t *draw_ctx, lv_draw_label_dsc_t *dsc,
+                               char *txt, lv_coord_t x, lv_coord_t y,
+                               lv_coord_t first_w, lv_coord_t cont_w,
+                               lv_coord_t line_h, lv_coord_t row_advance) {
+  if (!txt || txt[0] == '\0') return;
+
+  uint32_t offset = 0;
+  uint8_t row = 0;
+  lv_coord_t w = first_w;
+
+  while (txt[offset] != '\0' && row < 255) {
+    uint32_t step = _lv_txt_get_next_line(&txt[offset], dsc->font, dsc->letter_space,
+                                          w, NULL, LV_TEXT_FLAG_NONE);
+    if (step == 0) break; // never spin on a non-advancing split
+
+    bool terminate = txt[offset + step] != '\0';
+    char saved = txt[offset + step];
+    if (terminate) txt[offset + step] = '\0';
+
+    lv_area_t area;
+    area.x1 = x + (row == 0 ? 0 : TERMINAL_CONT_INDENT);
+    area.y1 = y + (lv_coord_t)row * row_advance;
+    area.x2 = area.x1 + w - 1;
+    area.y2 = area.y1 + line_h - 1;
+    lv_draw_label(draw_ctx, dsc, &area, &txt[offset], NULL);
+
+    if (terminate) txt[offset + step] = saved;
+
+    offset += step;
+    row++;
+    w = cont_w;
+  }
+}
+
 static void recalc_layout_if_needed(void) {
   if (!terminal_canvas || !lv_obj_is_valid(terminal_canvas)) return;
   if (!terminal_store_lock()) return;
@@ -493,18 +592,20 @@ static void recalc_layout_if_needed(void) {
 
   const lv_font_t *font = lv_obj_get_style_text_font(terminal_canvas, 0);
   lv_coord_t letter_space = lv_obj_get_style_text_letter_space(terminal_canvas, 0);
-  lv_coord_t line_space = lv_obj_get_style_text_line_space(terminal_canvas, 0);
+  lv_coord_t line_h = lv_font_get_line_height(font);
+  lv_coord_t cont_w = col_w - TERMINAL_CONT_INDENT;
+  if (cont_w < 1) cont_w = col_w;
 
   lv_coord_t total = 0;
   for (uint16_t i = 0; i < term_line_count; i++) {
     uint16_t idx = (term_line_head + i) % MAX_TERMINAL_LINES;
     TermLine *L = &term_lines[idx];
     if (L->pxh == 0) {
-      lv_point_t sz;
-      const char *txt = L->len ? term_text_arena + L->offset : " ";
-      lv_txt_get_size(&sz, txt, font, letter_space, line_space, col_w, LV_TEXT_FLAG_NONE);
-      if (sz.y <= 0) sz.y = lv_font_get_line_height(font);
-      L->pxh = (uint16_t)sz.y;
+      const char *txt = L->len ? term_text_arena + L->offset : NULL;
+      uint8_t rows = terminal_split_rows(txt, font, letter_space, col_w, cont_w);
+      /* One line box per row plus the leading that separates it from the next,
+       * so rows never touch and a wrapped line stays visually grouped. */
+      L->pxh = (uint16_t)(rows * (line_h + TERMINAL_LINE_GAP));
     }
     total += L->pxh;
   }
@@ -549,9 +650,14 @@ static void terminal_canvas_draw_event(lv_event_t *e) {
   dsc.line_space = lv_obj_get_style_text_line_space(obj, 0);
   dsc.flag = LV_TEXT_FLAG_NONE;
 
+  const lv_color_t base_color = dsc.color;
   lv_coord_t w = lv_obj_get_width(obj);
   bool split = terminal_should_use_split_view() && (w > 60);
   lv_coord_t col_w = split ? (w / 2) : w;
+  const lv_coord_t line_h = lv_font_get_line_height(dsc.font);
+  const lv_coord_t row_advance = line_h + TERMINAL_LINE_GAP;
+  lv_coord_t cont_w = col_w - TERMINAL_CONT_INDENT;
+  if (cont_w < 1) cont_w = col_w;
   lv_coord_t local_top = clip->y1 - obj_coords.y1;
   lv_coord_t local_bottom = clip->y2 - obj_coords.y1;
   if (!term_lines || !term_text_arena) {
@@ -568,13 +674,12 @@ static void terminal_canvas_draw_event(lv_event_t *e) {
       lv_coord_t h = L->pxh;
       if ((y + h) < local_top) { y += h; continue; }
       if (y > local_bottom) break;
-      const char *txt = L->len ? term_text_arena + L->offset : " ";
-      lv_area_t a;
-      a.x1 = obj_coords.x1;
-      a.y1 = obj_coords.y1 + y;
-      a.x2 = a.x1 + col_w - 1;
-      a.y2 = a.y1 + h - 1;
-      lv_draw_label(draw_ctx, &dsc, &a, txt, NULL);
+      if (L->len) {
+        char *txt = term_text_arena + L->offset;
+        dsc.color = terminal_line_color(txt, base_color);
+        terminal_draw_rows(draw_ctx, &dsc, txt, obj_coords.x1, obj_coords.y1 + y,
+                           col_w, cont_w, line_h, row_advance);
+      }
       y += h;
     }
   } else {
@@ -590,13 +695,12 @@ static void terminal_canvas_draw_event(lv_event_t *e) {
       }
       if ((y_left + h) < local_top) { y_left += h; continue; }
       if (y_left > local_bottom) break;
-      const char *txt = L->len ? term_text_arena + L->offset : " ";
-      lv_area_t a;
-      a.x1 = obj_coords.x1;
-      a.y1 = obj_coords.y1 + y_left;
-      a.x2 = a.x1 + col_w - 1;
-      a.y2 = a.y1 + h - 1;
-      lv_draw_label(draw_ctx, &dsc, &a, txt, NULL);
+      if (L->len) {
+        char *txt = term_text_arena + L->offset;
+        dsc.color = terminal_line_color(txt, base_color);
+        terminal_draw_rows(draw_ctx, &dsc, txt, obj_coords.x1, obj_coords.y1 + y_left,
+                           col_w, cont_w, line_h, row_advance);
+      }
       y_left += h;
     }
 
@@ -611,14 +715,13 @@ static void terminal_canvas_draw_event(lv_event_t *e) {
       }
       if ((y_right + h) < local_top) { y_right += h; continue; }
       if (y_right > local_bottom) break;
-      const char *txt = L->len ? term_text_arena + L->offset : " ";
-      const char *s = terminal_dualcomm_display_text(txt);
-      lv_area_t b;
-      b.x1 = obj_coords.x1 + col_w;
-      b.y1 = obj_coords.y1 + y_right;
-      b.x2 = obj_coords.x1 + w - 1;
-      b.y2 = b.y1 + h - 1;
-      lv_draw_label(draw_ctx, &dsc, &b, s, NULL);
+      if (L->len) {
+        char *txt = term_text_arena + L->offset;
+        char *s = (char *)terminal_dualcomm_display_text(txt);
+        dsc.color = terminal_line_color(s, base_color);
+        terminal_draw_rows(draw_ctx, &dsc, s, obj_coords.x1 + col_w,
+                           obj_coords.y1 + y_right, col_w, cont_w, line_h, row_advance);
+      }
       y_right += h;
     }
   }
@@ -783,7 +886,12 @@ void terminal_view_create(void) {
     lv_obj_set_pos(terminal_scroller, 0, STATUS_BAR_HEIGHT);
     lv_obj_set_size(terminal_scroller, LV_HOR_RES, textarea_height);
     lv_obj_set_style_bg_color(terminal_scroller, lv_color_black(), 0);
-    lv_obj_set_style_pad_all(terminal_scroller, 0, 0);
+    /* The canvas is 100% of the content width, so insetting here also narrows
+     * the wrap width and shifts every drawn line without extra coordinate math. */
+    lv_obj_set_style_pad_left(terminal_scroller, TERMINAL_PAD_H, 0);
+    lv_obj_set_style_pad_right(terminal_scroller, TERMINAL_PAD_H, 0);
+    lv_obj_set_style_pad_top(terminal_scroller, TERMINAL_PAD_V, 0);
+    lv_obj_set_style_pad_bottom(terminal_scroller, TERMINAL_PAD_V, 0);
     lv_obj_set_style_radius(terminal_scroller, 0, 0);
     lv_obj_set_scrollbar_mode(terminal_scroller, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_style_border_width(terminal_scroller, 0, 0);

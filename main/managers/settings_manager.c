@@ -239,8 +239,8 @@ void settings_set_defaults(FSettings *settings) {
   settings->rgb_green_pin = -1;
   settings->rgb_blue_pin = -1;
   settings->third_control_enabled = false;
-  settings->terminal_text_color = 0x00FF00;
-  settings->terminal_font_size = 1; // Normal (0=Small, 1=Normal, 2=Large)
+  settings->terminal_text_color = 0xFFFFFF; // White
+  settings->terminal_font_size = 0; // Small (0=Small, 1=Normal, 2=Large)
   settings->invert_colors = false;
   settings->web_auth_enabled = false;
   settings->usb_msc_enabled = false;
@@ -2025,7 +2025,7 @@ void settings_set_terminal_font_size(FSettings *settings, uint8_t size) {
 }
 
 uint8_t settings_get_terminal_font_size(const FSettings *settings) {
-  return settings ? settings->terminal_font_size : 1;
+  return settings ? settings->terminal_font_size : 0;
 }
 
 void settings_set_invert_colors(FSettings *settings, bool enabled) {
