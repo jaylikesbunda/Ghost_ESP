@@ -104,6 +104,7 @@ void handle_snmp_probe(int argc, char **argv);
 void handle_enum_scan(int argc, char **argv);
 void handle_congestion_cmd(int argc, char **argv);
 void handle_listen_probes_cmd(int argc, char **argv);
+void handle_mdns_sniff(int argc, char **argv);
 void handle_dhcpstarve_cmd(int argc, char **argv);
 
 // Scan cancellation helpers (used by stop-all handler)

@@ -455,6 +455,7 @@ void register_commands() {
     register_command("enumscan", handle_enum_scan);
     register_command("congestion", handle_congestion_cmd);
     register_command("listenprobes", handle_listen_probes_cmd);
+    register_command("mdnssniff", handle_mdns_sniff);
     register_command("settings", handle_settings_cmd);
     register_command("loglevel", handle_log_level_cmd);
     register_command("fav", handle_fav_cmd);

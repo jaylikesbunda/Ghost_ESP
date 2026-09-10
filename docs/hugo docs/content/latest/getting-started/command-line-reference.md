@@ -85,6 +85,7 @@ These commands are only present on builds that enable ESP-IDF core dumps **to fl
 - **`snmpprobe [<ip>|subnet <a.b.c[.0|.]>|walk <ip> [OID]|communities <list|file>]`** — Probe SNMP v1/v2c on UDP port 161 with the built-in community list (`public`, `private`, and more) and retrieve `sysDescr` to identify network devices (routers, switches, printers). `walk` dumps a MIB subtree (default `system`). `communities` overrides the list for the session, either as `c1,c2,...` or a path to a file; `/mnt/ghostesp/snmp_communities.txt` (one community per line) is loaded automatically when present.
 - **`enumscan [subnet [a.b.c.]]|<ip>`** — SMB enumeration: negotiates SMB1/SMB2, reports OS, hostname, domain, dialect, and whether SMB signing is required, then lists shares and users via null-session RAP where the server allows it.
 - **`dhcpstarve <start [threads]|stop|display>`** — Flood a DHCP server or show collected leases.
+- **`mdnssniff <IP|all>`** / **`mdnssniff stop`** — Passively sniff local names (mDNS/LLMNR/SSDP/NetBIOS) per host; no spoofing, auto-saves when Auto Save Scans is on.
 - **`capture <-probe|-deauth|-beacon|-raw|-eapol|-wps|-pwn|-list|-export|-wireshark|-wiresharkble|-ble|-skimmer|-stop>`** — Start packet captures for the specified frame type to SD. ESP32-C5/C6 also supports `-802154` for 802.15.4 capture.
 
 ### Output

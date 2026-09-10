@@ -874,7 +874,7 @@ static void setup_wizard_create(void) {
             temp_font_size = settings_get_font_size(&G_Settings);
             temp_high_contrast = settings_get_high_contrast(&G_Settings);
             temp_reduced_motion = settings_get_reduced_motion(&G_Settings);
-            show_option_screen("Accessibility", font_size_options, FONT_SIZE_COUNT, temp_font_size);
+            show_option_screen("Text & Reading", font_size_options, FONT_SIZE_COUNT, temp_font_size);
             break;
 #ifdef CONFIG_WITH_STATUS_DISPLAY
         case SETUP_STEP_IDLE_ANIMATION:

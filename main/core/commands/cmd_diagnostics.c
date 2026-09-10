@@ -17,6 +17,7 @@
 #include "attacks/ethernet/eth_arp_poison.h"
 #include "attacks/wifi/dhcp_starvation.h"
 #include "core/dns_server.h"
+#include "scans/wifi/name_sniff.h"
 #include "managers/aerial_detector_manager.h"
 #ifdef CONFIG_HAS_BADBLE
 #include "managers/badble_manager.h"
@@ -243,6 +244,7 @@ void handle_stop_flipper(int argc, char **argv) {
     snmp_scan_cancel();
     arp_scan_stop_passive();
     port_scan_cancel();
+    name_sniff_stop();
     glog("Stopped network scans.\n");
     stopped_any = true;
 

@@ -16,6 +16,7 @@
 #include "scans/wifi/snmp_scan.h"
 #include "scans/wifi/enum4linux_scan.h"
 #include "scans/wifi/arp_scan.h"
+#include "scans/wifi/name_sniff.h"
 #include "vendor/pcap.h"
 #include "esp_wifi.h"
 #include "sdkconfig.h"
@@ -308,6 +309,50 @@ void handle_enum_scan(int argc, char **argv) {
     glog("Starting Enum scan on %s...\n", argv[1]);
     enum_scan_host(argv[1]);
     status_display_show_status("Enum Done");
+}
+
+void handle_mdns_sniff(int argc, char **argv) {
+    if (argc >= 2 && (strcmp(argv[1], "stop") == 0 || strcmp(argv[1], "-s") == 0 ||
+                      strcmp(argv[1], "-stop") == 0)) {
+        if (!name_sniff_is_running()) {
+            glog("Name sniff is not running.\n");
+            return;
+        }
+        name_sniff_stop();
+        status_display_show_status("Names Stop");
+        return;
+    }
+
+    if (argc < 2) {
+        glog("Usage:\n");
+        glog("  mdnssniff <IP|all>\n");
+        glog("  mdnssniff stop\n");
+        if (name_sniff_is_running()) {
+            const char *f = name_sniff_get_filter();
+            glog("Sniffing now: %s\n", f[0] ? f : "all");
+        }
+        status_display_show_status("Names Usage");
+        return;
+    }
+
+    const char *target = argv[1];
+    if (strcmp(target, "all") != 0) {
+        unsigned int a = 0, b = 0, c = 0, d = 0;
+        char extra = '\0';
+        if (sscanf(target, "%u.%u.%u.%u%c", &a, &b, &c, &d, &extra) != 4 ||
+            a > 255 || b > 255 || c > 255 || d > 255) {
+            glog("Error: Invalid IP. Use <IP|all>.\n");
+            status_display_show_status("Names Bad IP");
+            return;
+        }
+    }
+
+    if (name_sniff_start(target) != ESP_OK) {
+        glog("Error: Could not start name sniff.\n");
+        status_display_show_status("Names Failed");
+        return;
+    }
+    status_display_show_status("Names Listen");
 }
 
 void handle_congestion_cmd(int argc, char **argv) {

@@ -418,6 +418,10 @@ void handle_help(int argc, char **argv) {
         glog("           snmpprobe subnet <a.b.c[.0|.]>\n");
         glog("           snmpprobe walk <IP> [OID]\n");
         glog("           snmpprobe communities <c1,c2,...|file>\n\n");
+        glog("mdnssniff\n");
+        glog("    Description: Passively sniff local names (mDNS/LLMNR/SSDP/NetBIOS) per host\n");
+        glog("    Usage: mdnssniff <IP|all>\n");
+        glog("           mdnssniff stop\n\n");
         glog("settings\n");
         glog("    Description: Manage NVS stored settings via command line\n");
         glog("    Usage: settings <command> [arguments]\n");

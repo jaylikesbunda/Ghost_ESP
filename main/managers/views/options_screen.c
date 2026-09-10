@@ -1091,6 +1091,7 @@ typedef enum {
 #endif
     SETTINGS_CAT_GHOSTLINK,
     SETTINGS_CAT_ACCESSIBILITY,
+    SETTINGS_CAT_TERMINAL,
     SETTINGS_CAT_LOCKSCREEN,
     SETTINGS_CAT_WARDRIVING,
     SETTINGS_CAT_GPS,
@@ -1103,12 +1104,12 @@ typedef enum {
 
 typedef enum {
     SETTINGS_ROOT_INFO = 0,
-    SETTINGS_ROOT_INTERFACE,
-    SETTINGS_ROOT_CONTROLS,
-    SETTINGS_ROOT_LIGHTS_AUDIO,
-    SETTINGS_ROOT_CONNECTIVITY,
-    SETTINGS_ROOT_DATA_TOOLS,
-    SETTINGS_ROOT_SECURITY,
+    SETTINGS_ROOT_DISPLAY,
+    SETTINGS_ROOT_NETWORK,
+    SETTINGS_ROOT_CAPTURE,
+    SETTINGS_ROOT_LIGHTS,
+    SETTINGS_ROOT_DEVICE,
+    SETTINGS_ROOT_ACCESS,
     SETTINGS_ROOT_SYSTEM,
     SETTINGS_ROOT_COUNT
 } SettingsRootId;
@@ -1128,45 +1129,46 @@ typedef struct {
 
 static SettingsRootCategory settings_root_categories[] = {
     {"About", SETTINGS_ROOT_INFO},
-    {"Display & Brightness", SETTINGS_ROOT_INTERFACE},
-    {"Controls", SETTINGS_ROOT_CONTROLS},
-    {"Lights & Audio", SETTINGS_ROOT_LIGHTS_AUDIO},
-    {"Connectivity", SETTINGS_ROOT_CONNECTIVITY},
-    {"Scans & Data", SETTINGS_ROOT_DATA_TOOLS},
-    {"Privacy & Security", SETTINGS_ROOT_SECURITY},
-    {"General", SETTINGS_ROOT_SYSTEM},
+    {"Display & Text", SETTINGS_ROOT_DISPLAY},
+    {"Network", SETTINGS_ROOT_NETWORK},
+    {"Capture & Location", SETTINGS_ROOT_CAPTURE},
+    {"Lights & Sound", SETTINGS_ROOT_LIGHTS},
+    {"Hardware", SETTINGS_ROOT_DEVICE},
+    {"Lock & Favorites", SETTINGS_ROOT_ACCESS},
+    {"System", SETTINGS_ROOT_SYSTEM},
 };
 
 static SettingsCategory settings_categories[] = {
-    {"Display", SETTINGS_CAT_DISPLAY, SETTINGS_ROOT_INTERFACE, false, NULL},
-    {"Appearance", SETTINGS_CAT_THEME_ASSETS, SETTINGS_ROOT_INTERFACE, false, NULL},
-    {"Menus", SETTINGS_CAT_MENU_STYLE, SETTINGS_ROOT_INTERFACE, false, NULL},
-    {"Navigation", SETTINGS_CAT_NAVIGATION, SETTINGS_ROOT_CONTROLS, false, NULL},
-    {"Accessibility", SETTINGS_CAT_ACCESSIBILITY, SETTINGS_ROOT_INTERFACE, false, NULL},
+    {"Screen", SETTINGS_CAT_DISPLAY, SETTINGS_ROOT_DISPLAY, false, NULL},
+    {"Theme", SETTINGS_CAT_THEME_ASSETS, SETTINGS_ROOT_DISPLAY, false, NULL},
+    {"Menus", SETTINGS_CAT_MENU_STYLE, SETTINGS_ROOT_DISPLAY, false, NULL},
+    {"Navigation", SETTINGS_CAT_NAVIGATION, SETTINGS_ROOT_DISPLAY, false, NULL},
+    {"Text & Reading", SETTINGS_CAT_ACCESSIBILITY, SETTINGS_ROOT_DISPLAY, false, NULL},
+    {"Terminal", SETTINGS_CAT_TERMINAL, SETTINGS_ROOT_DISPLAY, false, NULL},
 #ifdef CONFIG_WITH_STATUS_DISPLAY
-    {"Status Display", SETTINGS_CAT_STATUS_DISPLAY, SETTINGS_ROOT_INTERFACE, true, "CONFIG_WITH_STATUS_DISPLAY"},
+    {"Status Display", SETTINGS_CAT_STATUS_DISPLAY, SETTINGS_ROOT_DISPLAY, true, "CONFIG_WITH_STATUS_DISPLAY"},
 #endif
-    {"RGB", SETTINGS_CAT_LED_RGB, SETTINGS_ROOT_LIGHTS_AUDIO, false, NULL},
+    {"Wi-Fi", SETTINGS_CAT_NETWORK, SETTINGS_ROOT_NETWORK, false, NULL},
+    {"Radio", SETTINGS_CAT_WARDRIVING, SETTINGS_ROOT_NETWORK, false, NULL},
+    {"GhostLink", SETTINGS_CAT_GHOSTLINK, SETTINGS_ROOT_NETWORK, false, NULL},
+    {"WiGLE", SETTINGS_CAT_WIGLE, SETTINGS_ROOT_CAPTURE, false, NULL},
+    {"Location", SETTINGS_CAT_GPS, SETTINGS_ROOT_CAPTURE, false, NULL},
+    {"Saving", SETTINGS_CAT_SCAN_SAVING, SETTINGS_ROOT_CAPTURE, false, NULL},
+    {"LEDs", SETTINGS_CAT_LED_RGB, SETTINGS_ROOT_LIGHTS, false, NULL},
 #if defined(CONFIG_HAS_MIC) || defined(CONFIG_ENABLE_MIC_RGB_VISUALIZER)
-    {"Microphone", SETTINGS_CAT_MIC_RGB, SETTINGS_ROOT_LIGHTS_AUDIO, true, "CONFIG_HAS_MIC or CONFIG_ENABLE_MIC_RGB_VISUALIZER"},
+    {"Microphone", SETTINGS_CAT_MIC_RGB, SETTINGS_ROOT_LIGHTS, true, "CONFIG_HAS_MIC or CONFIG_ENABLE_MIC_RGB_VISUALIZER"},
 #endif
+    {"Power & USB", SETTINGS_CAT_POWER, SETTINGS_ROOT_DEVICE, false, NULL},
+    {"Hardware", SETTINGS_CAT_DEVICES, SETTINGS_ROOT_DEVICE, false, NULL},
 #ifdef CONFIG_USE_IO_EXPANDER
-    {"Buttons", SETTINGS_CAT_IO_BUTTONS, SETTINGS_ROOT_CONTROLS, true, "CONFIG_USE_IO_EXPANDER"},
+    {"Buttons", SETTINGS_CAT_IO_BUTTONS, SETTINGS_ROOT_DEVICE, true, "CONFIG_USE_IO_EXPANDER"},
 #endif
-    {"Wi-Fi", SETTINGS_CAT_NETWORK, SETTINGS_ROOT_CONNECTIVITY, false, NULL},
-    {"GhostLink", SETTINGS_CAT_GHOSTLINK, SETTINGS_ROOT_CONNECTIVITY, false, NULL},
-    {"WiGLE", SETTINGS_CAT_WIGLE, SETTINGS_ROOT_DATA_TOOLS, false, NULL},
-    {"Wardriving", SETTINGS_CAT_WARDRIVING, SETTINGS_ROOT_DATA_TOOLS, false, NULL},
-    {"GPS", SETTINGS_CAT_GPS, SETTINGS_ROOT_DATA_TOOLS, false, NULL},
-    {"Saving", SETTINGS_CAT_SCAN_SAVING, SETTINGS_ROOT_DATA_TOOLS, false, NULL},
-    {"Lock Screen", SETTINGS_CAT_LOCKSCREEN, SETTINGS_ROOT_SECURITY, false, NULL},
-    {"Favorites", SETTINGS_CAT_FAVORITES, SETTINGS_ROOT_SECURITY, false, NULL},
+    {"Lock Screen", SETTINGS_CAT_LOCKSCREEN, SETTINGS_ROOT_ACCESS, false, NULL},
+    {"Favorites", SETTINGS_CAT_FAVORITES, SETTINGS_ROOT_ACCESS, false, NULL},
     {"Date & Time", SETTINGS_CAT_DATE_TIME, SETTINGS_ROOT_SYSTEM, false, NULL},
-    {"Power", SETTINGS_CAT_POWER, SETTINGS_ROOT_SYSTEM, false, NULL},
-    {"Setup", SETTINGS_CAT_SYSTEM_TOOLS, SETTINGS_ROOT_SYSTEM, false, NULL},
-    {"Devices", SETTINGS_CAT_DEVICES, SETTINGS_ROOT_SYSTEM, false, NULL},
+    {"Tools", SETTINGS_CAT_SYSTEM_TOOLS, SETTINGS_ROOT_SYSTEM, false, NULL},
     {"Logging", SETTINGS_CAT_LOGGING, SETTINGS_ROOT_SYSTEM, false, NULL},
-    {"Transfer or Reset", SETTINGS_CAT_BACKUP_RESET, SETTINGS_ROOT_SYSTEM, false, NULL},
+    {"Backup & Reset", SETTINGS_CAT_BACKUP_RESET, SETTINGS_ROOT_SYSTEM, false, NULL},
 #if GHOSTESP_OTA_SUPPORTED
     {"Firmware Update", SETTINGS_CAT_FIRMWARE_UPDATE, SETTINGS_ROOT_SYSTEM, true, "CONFIG_ESPTOOLPY_FLASHSIZE_8MB or CONFIG_ESPTOOLPY_FLASHSIZE_16MB"},
 #endif
@@ -1837,12 +1839,12 @@ static SettingsItem settings_items[] = {
     {"Log Level", SETTING_LOG_LEVEL, log_level_options, 6, ESP_LOG_WARN, SETTINGS_CAT_LOGGING, false, NULL, SETTING_WIDGET_VALUE_CYCLE},
     {"Open Without PIN", SETTING_FAVORITES_BYPASS, bool_options, 2, 0, SETTINGS_CAT_FAVORITES, false, NULL, SETTING_WIDGET_TOGGLE},
     {"Manage Favorites", SETTING_MANAGE_FAVORITES, action_options, 1, 0, SETTINGS_CAT_FAVORITES, false, NULL, SETTING_WIDGET_VALUE_CYCLE},
-    {"Terminal Font", SETTING_TERMINAL_FONT_SIZE, font_size_options, 3, 1, SETTINGS_CAT_DISPLAY, false, NULL, SETTING_WIDGET_VALUE_CYCLE},
+    {"Terminal Font", SETTING_TERMINAL_FONT_SIZE, font_size_options, 3, 1, SETTINGS_CAT_TERMINAL, false, NULL, SETTING_WIDGET_VALUE_CYCLE},
 
     {"Menu Theme", SETTING_MENU_THEME, theme_options, THEME_PALETTE_THEME_COUNT, 0, SETTINGS_CAT_THEME_ASSETS, false, NULL, SETTING_WIDGET_VALUE_CYCLE},
     {"Background Effects", SETTING_THEME_BACKGROUND_EFFECTS, bool_options, 2, 1, SETTINGS_CAT_THEME_ASSETS, false, NULL, SETTING_WIDGET_TOGGLE},
     {"Asset Pack", SETTING_RELOAD_ASSET_PACK, (const char * const *)asset_pack_options, 1, 0, SETTINGS_CAT_THEME_ASSETS, false, NULL, SETTING_WIDGET_VALUE_CYCLE},
-    {"Terminal Color", SETTING_TERMINAL_COLOR, textcolor_options, 8, 0, SETTINGS_CAT_THEME_ASSETS, false, NULL, SETTING_WIDGET_VALUE_CYCLE},
+    {"Terminal Color", SETTING_TERMINAL_COLOR, textcolor_options, 8, 0, SETTINGS_CAT_TERMINAL, false, NULL, SETTING_WIDGET_VALUE_CYCLE},
     {"Menu Layout", SETTING_MENU_LAYOUT, menu_layout_options, 5, 1, SETTINGS_CAT_MENU_STYLE, false, NULL, SETTING_WIDGET_VALUE_CYCLE},
     {"Main Menu Items", SETTING_MAIN_MENU_ITEMS, action_options, 1, 0, SETTINGS_CAT_MENU_STYLE, false, NULL, SETTING_WIDGET_VALUE_CYCLE},
     {"Apps Gallery Items", SETTING_APPS_MENU_ITEMS, action_options, 1, 0, SETTINGS_CAT_MENU_STYLE, false, NULL, SETTING_WIDGET_VALUE_CYCLE},
@@ -1877,7 +1879,7 @@ static SettingsItem settings_items[] = {
     {"STA Password", SETTING_STA_PASSWORD, action_options, 1, 0, SETTINGS_CAT_NETWORK, false, NULL, SETTING_WIDGET_VALUE_CYCLE},
     {"WiFi Auto-Reconnect", SETTING_WIFI_AUTO_RECONNECT, bool_options, 2, 1, SETTINGS_CAT_NETWORK, false, NULL, SETTING_WIDGET_TOGGLE},
     {"Country", SETTING_COUNTRY, country_setting_options, country_setting_count, 0, SETTINGS_CAT_NETWORK, false, NULL, SETTING_WIDGET_VALUE_CYCLE},
-    {"Hop Channels", SETTING_HOP_CHANNELS, action_options, 1, 0, SETTINGS_CAT_NETWORK, false, NULL, SETTING_WIDGET_VALUE_CYCLE},
+    {"WiFi Hop Channels", SETTING_HOP_CHANNELS, action_options, 1, 0, SETTINGS_CAT_WARDRIVING, false, NULL, SETTING_WIDGET_VALUE_CYCLE},
 
     {"Timezone", SETTING_TIMEZONE, timezone_options, 13, 0, SETTINGS_CAT_DATE_TIME, false, NULL, SETTING_WIDGET_VALUE_CYCLE},
 
@@ -1920,7 +1922,7 @@ static SettingsItem settings_items[] = {
     {"Mirror Mode", SETTING_MIC_MIRROR_MODE, bool_options, 2, 0, SETTINGS_CAT_MIC_RGB, true, "CONFIG_HAS_MIC or CONFIG_ENABLE_MIC_RGB_VISUALIZER", SETTING_WIDGET_TOGGLE},
     {"Calibrate", SETTING_MIC_CALIBRATE, action_options, 1, 0, SETTINGS_CAT_MIC_RGB, true, "CONFIG_HAS_MIC or CONFIG_ENABLE_MIC_RGB_VISUALIZER", SETTING_WIDGET_VALUE_CYCLE},
 #endif
-    {"Split Terminal", SETTING_GHOSTLINK_SPLIT_VIEW, bool_options, 2, 1, SETTINGS_CAT_GHOSTLINK, false, NULL, SETTING_WIDGET_TOGGLE},
+    {"Split Terminal", SETTING_GHOSTLINK_SPLIT_VIEW, bool_options, 2, 1, SETTINGS_CAT_TERMINAL, false, NULL, SETTING_WIDGET_TOGGLE},
     {"Font Size", SETTING_FONT_SIZE, font_size_options, 3, 1, SETTINGS_CAT_ACCESSIBILITY, false, NULL, SETTING_WIDGET_VALUE_CYCLE},
     {"High Contrast", SETTING_HIGH_CONTRAST, bool_options, 2, 0, SETTINGS_CAT_ACCESSIBILITY, false, NULL, SETTING_WIDGET_TOGGLE},
     {"Reduced Motion", SETTING_REDUCED_MOTION, bool_options, 2, 0, SETTINGS_CAT_ACCESSIBILITY, false, NULL, SETTING_WIDGET_TOGGLE},
@@ -1935,7 +1937,7 @@ static SettingsItem settings_items[] = {
     {"Primary Hop", SETTING_WD_HOP_PRIMARY, wd_hop_options, wd_hop_count, 2, SETTINGS_CAT_WARDRIVING, false, NULL, SETTING_WIDGET_VALUE_CYCLE},
     {"Helper Hop", SETTING_WD_HOP_HELPER, wd_hop_options, wd_hop_count, 2, SETTINGS_CAT_WARDRIVING, false, NULL, SETTING_WIDGET_VALUE_CYCLE},
     {"Weighted 5GHz", SETTING_WD_WEIGHTED_5G, bool_options, 2, 1, SETTINGS_CAT_WARDRIVING, false, NULL, SETTING_WIDGET_TOGGLE},
-    {"Baud Rate", SETTING_GPS_BAUD_RATE, gps_baud_options, gps_baud_count, 0, SETTINGS_CAT_GPS, false, NULL, SETTING_WIDGET_VALUE_CYCLE},
+    {"GPS Baud Rate", SETTING_GPS_BAUD_RATE, gps_baud_options, gps_baud_count, 0, SETTINGS_CAT_GPS, false, NULL, SETTING_WIDGET_VALUE_CYCLE},
 
 #ifdef CONFIG_HAS_INFRARED
     {"IR TX Pin", SETTING_IR_TX_PIN, action_options, 1, 0, SETTINGS_CAT_DEVICES, false, NULL, SETTING_WIDGET_VALUE_CYCLE},
@@ -2570,6 +2572,7 @@ static void arp_host_scan_cb(lv_event_t *e) {
         case 3: snprintf(cmd, sizeof(cmd), "httpbannerscan %s", host->ip); break;
         case 4: snprintf(cmd, sizeof(cmd), "snmpprobe %s", host->ip); break;
         case 5: snprintf(cmd, sizeof(cmd), "snmpprobe walk %s", host->ip); break;
+        case 7: snprintf(cmd, sizeof(cmd), "mdnssniff %s", host->ip); break;
         default: snprintf(cmd, sizeof(cmd), "enumscan %s", host->ip); break;
     }
 
@@ -2626,6 +2629,7 @@ static void show_arp_detail(int index) {
     detail_view_add_action(arp_detail_view, "SNMP Probe", arp_host_scan_cb, (void *)(intptr_t)4);
     detail_view_add_action(arp_detail_view, "SNMP Walk", arp_host_scan_cb, (void *)(intptr_t)5);
     detail_view_add_action(arp_detail_view, "SMB Enum", arp_host_scan_cb, (void *)(intptr_t)6);
+    detail_view_add_action(arp_detail_view, "Sniff Local Names", arp_host_scan_cb, (void *)(intptr_t)7);
 
     detail_view_add_back(arp_detail_view, arp_detail_back_cb, NULL);
     current_wifi_menu_state = WIFI_MENU_ARP_DETAILS;
@@ -7474,7 +7478,7 @@ void option_event_cb(lv_event_t *e) {
                     settings_set_io_btn_p12_cmd(&G_Settings, prefix);
                 }
                 settings_save(&G_Settings);
-                current_settings_root = SETTINGS_ROOT_CONTROLS;
+                current_settings_root = SETTINGS_ROOT_DEVICE;
                 current_settings_category = settings_category_index_for_id(SETTINGS_CAT_IO_BUTTONS);
                 settings_submenu_depth = 2;
                 SelectedMenuType = OT_Settings;
@@ -10352,7 +10356,7 @@ static void back_event_cb(lv_event_t *e) {
         wigle_csv_free_cache();
         SelectedMenuType = OT_Settings;
         is_settings_mode = true;
-        current_settings_root = SETTINGS_ROOT_DATA_TOOLS;
+        current_settings_root = SETTINGS_ROOT_CAPTURE;
         current_settings_category = settings_category_index_for_id(SETTINGS_CAT_WIGLE);
         settings_submenu_depth = 2;
         rebuild_current_menu();
@@ -13994,7 +13998,7 @@ static void iobtn_p10_kb_cb(const char *text) {
     settings_set_io_btn_p10_cmd(&G_Settings, text ? text : "");
     settings_save(&G_Settings);
     keyboard_view_set_submit_callback(NULL);
-    current_settings_root = SETTINGS_ROOT_CONTROLS;
+    current_settings_root = SETTINGS_ROOT_DEVICE;
     current_settings_category = settings_category_index_for_id(SETTINGS_CAT_IO_BUTTONS);
     settings_submenu_depth = 2;
     SelectedMenuType = OT_Settings;
@@ -14005,7 +14009,7 @@ static void iobtn_p11_kb_cb(const char *text) {
     settings_set_io_btn_p11_cmd(&G_Settings, text ? text : "");
     settings_save(&G_Settings);
     keyboard_view_set_submit_callback(NULL);
-    current_settings_root = SETTINGS_ROOT_CONTROLS;
+    current_settings_root = SETTINGS_ROOT_DEVICE;
     current_settings_category = settings_category_index_for_id(SETTINGS_CAT_IO_BUTTONS);
     settings_submenu_depth = 2;
     SelectedMenuType = OT_Settings;
@@ -14016,7 +14020,7 @@ static void iobtn_p12_kb_cb(const char *text) {
     settings_set_io_btn_p12_cmd(&G_Settings, text ? text : "");
     settings_save(&G_Settings);
     keyboard_view_set_submit_callback(NULL);
-    current_settings_root = SETTINGS_ROOT_CONTROLS;
+    current_settings_root = SETTINGS_ROOT_DEVICE;
     current_settings_category = settings_category_index_for_id(SETTINGS_CAT_IO_BUTTONS);
     settings_submenu_depth = 2;
     SelectedMenuType = OT_Settings;
@@ -14046,7 +14050,7 @@ static void ir_pin_kb_apply(const char *text, bool is_tx) {
                                  : "Invalid IR RX pin (use -1 or a valid GPIO)");
     }
     keyboard_view_set_submit_callback(NULL);
-    current_settings_root = SETTINGS_ROOT_SYSTEM;
+    current_settings_root = SETTINGS_ROOT_DEVICE;
     current_settings_category = settings_category_index_for_id(SETTINGS_CAT_DEVICES);
     settings_submenu_depth = 2;
     SelectedMenuType = OT_Settings;
@@ -14072,7 +14076,7 @@ static void ap_ssid_kb_cb(const char *text) {
         (void)ap_manager_restore_after_attack("ap ssid change");
     }
     keyboard_view_set_submit_callback(NULL);
-    current_settings_root = SETTINGS_ROOT_CONNECTIVITY;
+    current_settings_root = SETTINGS_ROOT_NETWORK;
     current_settings_category = settings_category_index_for_id(SETTINGS_CAT_NETWORK);
     settings_submenu_depth = 2;
     SelectedMenuType = OT_Settings;
@@ -14087,7 +14091,7 @@ static void ap_password_kb_cb(const char *text) {
     settings_persist_setting(SETTING_AP_PASSWORD);
     (void)ap_manager_restore_after_attack("ap password change");
     keyboard_view_set_submit_callback(NULL);
-    current_settings_root = SETTINGS_ROOT_CONNECTIVITY;
+    current_settings_root = SETTINGS_ROOT_NETWORK;
     current_settings_category = settings_category_index_for_id(SETTINGS_CAT_NETWORK);
     settings_submenu_depth = 2;
     SelectedMenuType = OT_Settings;
@@ -14103,7 +14107,7 @@ static void sta_ssid_kb_cb(const char *text) {
         wifi_manager_configure_sta_from_settings();
     }
     keyboard_view_set_submit_callback(NULL);
-    current_settings_root = SETTINGS_ROOT_CONNECTIVITY;
+    current_settings_root = SETTINGS_ROOT_NETWORK;
     current_settings_category = settings_category_index_for_id(SETTINGS_CAT_NETWORK);
     settings_submenu_depth = 2;
     SelectedMenuType = OT_Settings;
@@ -14117,7 +14121,7 @@ static void sta_password_kb_cb(const char *text) {
     settings_persist_setting(SETTING_STA_PASSWORD);
     wifi_manager_configure_sta_from_settings();
     keyboard_view_set_submit_callback(NULL);
-    current_settings_root = SETTINGS_ROOT_CONNECTIVITY;
+    current_settings_root = SETTINGS_ROOT_NETWORK;
     current_settings_category = settings_category_index_for_id(SETTINGS_CAT_NETWORK);
     settings_submenu_depth = 2;
     SelectedMenuType = OT_Settings;
