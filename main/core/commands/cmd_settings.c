@@ -83,6 +83,7 @@ static const SettingDescriptor k_settings_desc[] = {
     {"terminal_font_size", ST_U8, OFF(terminal_font_size), "Display", 0, 0, 2},
     {"menu_theme", ST_U8, OFF(menu_theme), "Display", 0, 0, THEME_PALETTE_THEME_COUNT - 1},
     {"font_size", ST_U8, OFF(font_size), "Display", 0, 0, 2},
+    {"row_height", ST_U8, OFF(row_height), "Display", 0, 0, MENU_ROW_HEIGHT_OPTION_COUNT - 1},
     {"reduce_motion", ST_BOOL, OFF(reduced_motion), "Display", 0, 0, 0},
     {"repeat_speed", ST_U8, OFF(input_repeat_speed), "Display", 0, 0, 2},
     {"high_contrast", ST_BOOL, OFF(high_contrast), "Display", 0, 0, 0},
@@ -521,6 +522,7 @@ void handle_settings_cmd(int argc, char **argv) {
         glog("    terminal_font_size - Terminal font size (0=Small,1=Normal,2=Large)\n");
         glog("    menu_theme        - Menu theme palette index\n");
         glog("    font_size         - Global font size (0=Small,1=Normal,2=Large)\n");
+        glog("    row_height        - Options row height (0=Compact,1=Normal,2=Large,3=Extra Large)\n");
         glog("    reduce_motion     - Reduce animations (true/false)\n");
         glog("    repeat_speed      - Input repeat speed (0-2)\n");
         glog("    high_contrast     - High contrast mode (true/false)\n");

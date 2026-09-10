@@ -2,6 +2,7 @@
 
 #include "lvgl.h"
 #include <stdbool.h>
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -35,6 +36,11 @@ lv_obj_t *options_view_add_back_row(options_view_t *ov, lv_event_cb_t on_click, 
 // so a row re-heighted by the caller afterwards still wins.
 void options_view_set_item_height(options_view_t *ov, int height);
 
+// Scale a base row height by the user's Row Height setting (clamped to a usable range).
+// Applied by default to every options list; callers with bespoke row bases should route
+// them through this so the setting stays the single source of truth.
+int options_view_scale_row_height(int base);
+
 // Selection helpers (wrap-around). Index is 0-based across added items.
 void options_view_set_selected(options_view_t *ov, int index);
 void options_view_move_selection(options_view_t *ov, int delta);
@@ -65,6 +71,50 @@ void options_view_relayout_item(options_view_t *ov, lv_obj_t *item);
 void options_view_refresh_selected_item(options_view_t *ov);
 
 void options_view_trigger_wipe(options_view_t *ov);
+
+/* Virtual (windowed) lists.
+ *
+ * A virtual list keeps a fixed pool of rows and rebinds them as the selection
+ * scrolls, so a menu of 10 items and a menu of 5000 items cost the same number
+ * of LVGL objects. The source is described by callbacks rather than a
+ * materialised label array, which is what makes unbounded lists (scan results,
+ * IR remotes, file listings) affordable without "< Prev / Next >" pages.
+ *
+ * Call options_view_virtual_start() on an empty view instead of adding items;
+ * do not mix add_item() with virtual mode. Set the row height first, since the
+ * pool size is derived from the list geometry and the current row height. */
+
+typedef int (*options_view_count_fn)(void *user_data);
+
+/* Write the label for `index` into `out`. `out_len` is the buffer size. */
+typedef void (*options_view_fill_fn)(int index, char *out, size_t out_len, void *user_data);
+
+/* Called when a row is clicked or activated by the selection. */
+typedef void (*options_view_activate_fn)(int index, void *user_data);
+
+void options_view_virtual_start(options_view_t *ov,
+                                options_view_count_fn count_fn,
+                                options_view_fill_fn fill_fn,
+                                options_view_activate_fn activate_fn,
+                                void *user_data);
+
+/* Re-read the item count from count_fn and rebind the visible window. Call
+ * after the backing data changes (new scan results, refreshed file list). */
+void options_view_virtual_refresh(options_view_t *ov);
+
+bool options_view_is_virtual(const options_view_t *ov);
+
+/* Number of items reported by count_fn (0 in non-virtual mode). */
+int options_view_virtual_count(const options_view_t *ov);
+
+/* Size of the row pool, i.e. how many items are on screen at once. */
+int options_view_virtual_visible_rows(const options_view_t *ov);
+
+/* Wrap-around selection over the whole item range; scrolls the window. */
+void options_view_virtual_select(options_view_t *ov, int index);
+void options_view_virtual_move(options_view_t *ov, int delta);
+
+int options_view_virtual_selected(const options_view_t *ov);
 
 #ifdef __cplusplus
 }

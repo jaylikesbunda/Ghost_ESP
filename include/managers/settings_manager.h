@@ -140,6 +140,7 @@ typedef enum {
     SETTING_MENU_ROUNDED,
     SETTING_EPILEPSY_WARNING,
     SETTING_FONT_SIZE,
+    SETTING_ROW_HEIGHT,
     SETTING_REDUCED_MOTION,
     SETTING_INPUT_REPEAT_SPEED,
     SETTING_HIGH_CONTRAST,
@@ -205,6 +206,9 @@ typedef enum {
  * 8-slot layouts are migrated on load (see settings_manager.c). */
 #define FAVORITES_MAX 16
 #define FAVORITE_NAME_LEN 64
+
+/* Number of presets offered by the options-list Row Height setting. */
+#define MENU_ROW_HEIGHT_OPTION_COUNT 4
 
 #define GPS_BAUD_AUTO 1U
 
@@ -355,6 +359,7 @@ typedef struct {
     bool menu_rounded;              // Rounded corners on menu items
     bool epilepsy_warning_enabled;  // Show warning before flashing LED effects
     uint8_t font_size;              // 0=Small, 1=Normal, 2=Large
+    uint8_t row_height;             // Options-list row size preset (0=Compact, 1=Normal, 2=Large, 3=Extra large)
     bool reduced_motion;            // Disable animations
     uint8_t input_repeat_speed;     // 0=Slow, 1=Normal, 2=Fast
     bool high_contrast;             // High contrast color overrides
@@ -655,6 +660,8 @@ bool settings_get_epilepsy_warning_enabled(const FSettings *settings);
 
 void settings_set_font_size(FSettings *settings, uint8_t size);
 uint8_t settings_get_font_size(const FSettings *settings);
+void settings_set_row_height(FSettings *settings, uint8_t height);
+uint8_t settings_get_row_height(const FSettings *settings);
 void settings_set_reduced_motion(FSettings *settings, bool enabled);
 bool settings_get_reduced_motion(const FSettings *settings);
 void settings_set_input_repeat_speed(FSettings *settings, uint8_t speed);

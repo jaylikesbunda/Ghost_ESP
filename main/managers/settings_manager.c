@@ -133,6 +133,7 @@ static const char *NVS_THEME_BG_EFFECTS_KEY = "theme_bg_fx";
 static const char *NVS_MENU_ROUNDED_KEY = "menu_rounded";
 static const char *NVS_EPILEPSY_WARNING_KEY = "epil_warn";
 static const char *NVS_FONT_SIZE_KEY = "font_size";
+static const char *NVS_ROW_HEIGHT_KEY = "row_height";
 static const char *NVS_REDUCED_MOTION_KEY = "reduce_motion";
 static const char *NVS_INPUT_REPEAT_SPEED_KEY = "repeat_spd";
 static const char *NVS_HIGH_CONTRAST_KEY = "high_contrast";
@@ -297,6 +298,7 @@ void settings_set_defaults(FSettings *settings) {
 #ifdef CONFIG_IS_ATOMS3R
   settings->font_size = 0; // Small is the default on the AtomS3R display
 #endif
+  settings->row_height = 1; // Normal options-list row size
   settings->reduced_motion = false;
   settings->input_repeat_speed = 1; // Normal (0=Slow, 1=Normal, 2=Fast)
   settings->high_contrast = false;
@@ -929,6 +931,10 @@ void settings_load(FSettings *settings) {
   if (err == ESP_OK) {
     settings->font_size = value_u8;
   }
+  err = nvs_get_u8(nvsHandle, NVS_ROW_HEIGHT_KEY, &value_u8);
+  if (err == ESP_OK) {
+    settings->row_height = value_u8;
+  }
   err = nvs_get_u8(nvsHandle, NVS_REDUCED_MOTION_KEY, &value_u8);
   if (err == ESP_OK) {
     settings->reduced_motion = (bool)value_u8;
@@ -1405,6 +1411,10 @@ void settings_persist_setting(SettingsType setting) {
             err = nvs_set_u8(nvsHandle, NVS_FONT_SIZE_KEY, G_Settings.font_size);
             key = NVS_FONT_SIZE_KEY;
             break;
+        case SETTING_ROW_HEIGHT:
+            err = nvs_set_u8(nvsHandle, NVS_ROW_HEIGHT_KEY, G_Settings.row_height);
+            key = NVS_ROW_HEIGHT_KEY;
+            break;
         case SETTING_REDUCED_MOTION:
             err = nvs_set_u8(nvsHandle, NVS_REDUCED_MOTION_KEY, G_Settings.reduced_motion ? 1 : 0);
             key = NVS_REDUCED_MOTION_KEY;
@@ -1730,6 +1740,7 @@ esp_err_t settings_save(const FSettings *settings) {
     NVS_SET(nvs_set_u8(nvsHandle, NVS_MENU_ROUNDED_KEY, settings->menu_rounded ? 1 : 0));
     NVS_SET(nvs_set_u8(nvsHandle, NVS_EPILEPSY_WARNING_KEY, settings->epilepsy_warning_enabled ? 1 : 0));
     NVS_SET(nvs_set_u8(nvsHandle, NVS_FONT_SIZE_KEY, settings->font_size));
+    NVS_SET(nvs_set_u8(nvsHandle, NVS_ROW_HEIGHT_KEY, settings->row_height));
     NVS_SET(nvs_set_u8(nvsHandle, NVS_REDUCED_MOTION_KEY, settings->reduced_motion ? 1 : 0));
     NVS_SET(nvs_set_u8(nvsHandle, NVS_INPUT_REPEAT_SPEED_KEY, settings->input_repeat_speed));
     NVS_SET(nvs_set_u8(nvsHandle, NVS_HIGH_CONTRAST_KEY, settings->high_contrast ? 1 : 0));
@@ -2549,6 +2560,17 @@ void settings_set_menu_rounded(FSettings *settings, bool enabled) {
 
 bool settings_get_menu_rounded(const FSettings *settings) {
   return settings ? settings->menu_rounded : false;
+}
+
+void settings_set_row_height(FSettings *settings, uint8_t height) {
+  if (settings) {
+    settings->row_height = height < MENU_ROW_HEIGHT_OPTION_COUNT ? height : 1;
+  }
+}
+
+uint8_t settings_get_row_height(const FSettings *settings) {
+  if (!settings) return 1;
+  return settings->row_height < MENU_ROW_HEIGHT_OPTION_COUNT ? settings->row_height : 1;
 }
 
 void settings_set_epilepsy_warning_enabled(FSettings *settings, bool enabled) {

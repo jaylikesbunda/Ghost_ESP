@@ -194,6 +194,7 @@ static cJSON *settings_to_json_object(const FSettings *s) {
   cJSON_AddBoolToObject(o, "menu_rounded", s->menu_rounded);
   cJSON_AddBoolToObject(o, "menu_item_borders", s->menu_item_borders);
   cJSON_AddBoolToObject(o, "menu_card_bg", s->menu_card_bg);
+  cJSON_AddNumberToObject(o, "row_height", (double)s->row_height);
 
 #ifdef CONFIG_WITH_STATUS_DISPLAY
   cJSON_AddNumberToObject(o, "status_idle_animation", (double)s->status_idle_animation);
@@ -391,6 +392,8 @@ static void json_apply_to_settings(FSettings *s, const cJSON *root) {
   if (cJSON_GetObjectItemCaseSensitive(root, "menu_card_bg")) {
     s->menu_card_bg = jget_bool(root, "menu_card_bg", s->menu_card_bg);
   }
+  s->row_height = (uint8_t)jget_int_clamp(root, "row_height", s->row_height, 0,
+                                          MENU_ROW_HEIGHT_OPTION_COUNT - 1);
 
 #ifdef CONFIG_WITH_STATUS_DISPLAY
   if (cJSON_GetObjectItemCaseSensitive(root, "status_idle_animation")) {

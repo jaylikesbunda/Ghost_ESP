@@ -15,6 +15,7 @@ Untagged entries are by ([@jaylikesbunda](https://github.com/jaylikesbunda)). A 
 - Added USB SD card passthrough on ESP32-S3 boards with an SD card
 - Added custom channel hopping setting that applies to deauth, beacon spam, AP and station scans, airspace monitor, and packet visualizer/capture hopping.
 - Added a Country selector to Settings > Wi-Fi for display UI
+- Added a Row Height setting for the options menus
 - Added support for setting IR TX/RX pins at runtime through the CLI or display UI settings menu
 - Added `dualwd` BLE + WiFi coexistence wardriving (exclusive to PSRAM devices), available from the CLI and GPS menu
 - Added Elecrow CrowPanel 1.28-inch rotary display support with USB Audio volume/mute control
@@ -43,6 +44,7 @@ Untagged entries are by ([@jaylikesbunda](https://github.com/jaylikesbunda)). A 
 - Matched Ethernet dashboard status card to the rounded action rows
 - Cleaned up boot and GhostLink console output
 - Restyled the on-screen keyboard with a standard iOS-style layout
+- Wi-Fi and Bluetooth scan result menus now scroll as a single list instead of paging through `< Prev` / `Next >` rows
 
 ### Fixed
 - Fixed GhostScript crash when an event listener received an event
