@@ -57,6 +57,7 @@
 #define BLE_AD_TYPE_32BIT_UUID_PARTIAL   0x04
 #define BLE_AD_TYPE_128BIT_UUID_COMPLETE 0x07
 #define BLE_AD_TYPE_128BIT_UUID_PARTIAL  0x06
+#define BLE_AD_TYPE_SERVICE_DATA_16BIT   0x16
 
 static const char *s_suspicious_skimmer_names[] = {
     "HC-03",
@@ -89,6 +90,7 @@ typedef struct {
     BLEDetectDeviceType type;
     TickType_t last_log_tick;
     int8_t last_rssi;
+    rssi_median_t med;
     int64_t last_rx_us;   // esp_timer timestamp of the last matching advertisement
 } BLEDetectTrackingState;
 
@@ -441,13 +443,14 @@ static void ble_device_detect_callback(struct ble_gap_event *event, size_t len) 
         if (!is_tracking_addr(&event->disc.addr)) {
             return;
         }
-        s_tracking.last_rssi = event->disc.rssi;
+        rssi_median_push(&s_tracking.med, event->disc.rssi);
+        s_tracking.last_rssi = rssi_median_get(&s_tracking.med);
         s_tracking.last_rx_us = esp_timer_get_time();
         /* Keep the stored device entry in sync so the list shows latest RSSI. */
         for (int i = 0; i < s_device_count; i++) {
             if (s_devices[i].addr.type == event->disc.addr.type &&
                 memcmp(s_devices[i].addr.val, event->disc.addr.val, sizeof(event->disc.addr.val)) == 0) {
-                s_devices[i].rssi = event->disc.rssi;
+                s_devices[i].rssi = s_tracking.last_rssi;
                 if (s_devices[i].type == BLE_DETECT_DEVICE_AIRTAG) {
                     char mac[18];
                     format_mac_address(s_devices[i].addr.val, mac, sizeof(mac), false);
@@ -754,6 +757,8 @@ bool ble_device_detect_start_tracking(int index) {
     memcpy(&s_tracking.addr, &dev.addr, sizeof(s_tracking.addr));
     s_tracking.last_log_tick = 0;
     s_tracking.last_rssi = dev.rssi;
+    rssi_median_reset(&s_tracking.med);
+    rssi_median_push(&s_tracking.med, dev.rssi);
     s_tracking.last_rx_us = esp_timer_get_time();
 
     char mac[18];

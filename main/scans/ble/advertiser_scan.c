@@ -96,6 +96,7 @@ typedef struct {
     ble_addr_t addr;
     TickType_t last_log_tick;
     int8_t last_rssi;
+    rssi_median_t med;
     int64_t last_rx_us;   // esp_timer timestamp of the last matching advertisement
 } AdvertiserTrackingState;
 
@@ -607,7 +608,9 @@ static void advertiser_scan_callback(struct ble_gap_event *event, size_t len) {
             tracked->seen_count++;
         }
         parse_adv_fields(tracked, event->disc.data, event->disc.length_data);
-        s_tracking.last_rssi = event->disc.rssi;
+        rssi_median_push(&s_tracking.med, event->disc.rssi);
+        s_tracking.last_rssi = rssi_median_get(&s_tracking.med);
+        tracked->rssi = s_tracking.last_rssi;
         s_tracking.last_rx_us = esp_timer_get_time();
         log_tracking_update(tracked);
         return;
@@ -825,6 +828,8 @@ bool advertiser_scan_start_tracking(int index) {
     memcpy(&s_tracking.addr, &dev.addr, sizeof(s_tracking.addr));
     s_tracking.last_log_tick = 0;
     s_tracking.last_rssi = dev.rssi;
+    rssi_median_reset(&s_tracking.med);
+    rssi_median_push(&s_tracking.med, dev.rssi);
     s_tracking.last_rx_us = esp_timer_get_time();
 
     char mac[18];

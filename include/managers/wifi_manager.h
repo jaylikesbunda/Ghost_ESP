@@ -359,6 +359,10 @@ void wifi_manager_stop_tracking(void);
 // most recent matched RSSI and *out_fresh whether a packet arrived recently.
 bool wifi_manager_get_track_status(int8_t *out_rssi, bool *out_fresh);
 
+// Closeness of the smoothed tracking RSSI within this session's observed
+// [min, max] range, 0-100. Returns -1 when not tracking or no range yet.
+int wifi_manager_get_track_closeness(void);
+
 dns_server_handle_t dns_handle_take(void);
 
 #endif // WIFI_MANAGER_H

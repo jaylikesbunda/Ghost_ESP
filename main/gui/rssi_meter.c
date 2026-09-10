@@ -15,6 +15,20 @@ uint32_t theme_palette_get_text_muted(uint8_t theme);
 
 #define RSSI_METER_SAMPLE_MS 150
 
+/* Trend detector: slope over a short window of *changed* fresh readings.
+ * Duplicates carry no information (some sources re-report the last RSSI
+ * while fresh), so only changes are pushed. */
+#define RSSI_METER_HIST_N 16
+#define RSSI_METER_TREND_MIN_PUSHES 4
+#define RSSI_METER_TREND_MIN_SPAN_MS 1500
+#define RSSI_METER_TREND_DB 2
+#define RSSI_METER_HIST_MAX_AGE_MS 20000
+
+/* EMA weight: display = (prev + sample) / 2. Converges in ~4 ticks
+ * (~600 ms) — enough to tame ±10 dB multipath flicker without adding
+ * perceptible lag versus the raw number. */
+#define RSSI_METER_EMA_UNINIT 0
+
 /* Fade opacity range for the ring colour breathing effect. */
 #define RSSI_METER_FADE_MIN_OPA LV_OPA_40
 #define RSSI_METER_FADE_MAX_OPA LV_OPA_COVER
@@ -24,6 +38,7 @@ struct rssi_meter_t {
     lv_obj_t *ring;
     lv_obj_t *value_label;
     lv_obj_t *unit_label;
+    lv_obj_t *trend_label;
     lv_obj_t *subtext_label;
     lv_timer_t *sample_timer;
     rssi_meter_sample_cb sample_cb;
@@ -32,6 +47,10 @@ struct rssi_meter_t {
     lv_coord_t ring_d;
     int pulse_period;
     int8_t last_rssi;
+    int16_t ema_db10;
+    int8_t hist[RSSI_METER_HIST_N];
+    uint32_t hist_tick[RSSI_METER_HIST_N];
+    uint8_t hist_n;
     bool active;
 };
 
@@ -88,18 +107,79 @@ static void rssi_meter_set_pulse(rssi_meter_t *m, int period) {
     lv_anim_start(&a);
 }
 
+static void rssi_meter_hist_push(rssi_meter_t *m, int8_t rssi) {
+    uint32_t now = lv_tick_get();
+    uint8_t w = 0;
+    for (uint8_t i = 0; i < m->hist_n; i++) {
+        if (now - m->hist_tick[i] <= RSSI_METER_HIST_MAX_AGE_MS) {
+            m->hist[w] = m->hist[i];
+            m->hist_tick[w] = m->hist_tick[i];
+            w++;
+        }
+    }
+    m->hist_n = w;
+    if (w > 0 && m->hist[w - 1] == rssi) {
+        return;
+    }
+    if (w >= RSSI_METER_HIST_N) {
+        memmove(m->hist, m->hist + 1, RSSI_METER_HIST_N - 1);
+        memmove(m->hist_tick, m->hist_tick + 1,
+                (RSSI_METER_HIST_N - 1) * sizeof(m->hist_tick[0]));
+        w = RSSI_METER_HIST_N - 1;
+    }
+    m->hist[w] = rssi;
+    m->hist_tick[w] = now;
+    m->hist_n = (uint8_t)(w + 1);
+}
+
+/* +1 getting warmer (stronger), -1 colder, 0 flat/unknown. */
+static int rssi_meter_trend(const rssi_meter_t *m) {
+    if (!m || m->hist_n < RSSI_METER_TREND_MIN_PUSHES) {
+        return 0;
+    }
+    if (m->hist_tick[m->hist_n - 1] - m->hist_tick[0] < RSSI_METER_TREND_MIN_SPAN_MS) {
+        return 0;
+    }
+    uint8_t k = m->hist_n >= 6 ? 3 : 1;
+    int old_sum = 0;
+    int new_sum = 0;
+    for (uint8_t i = 0; i < k; i++) {
+        old_sum += m->hist[i];
+        new_sum += m->hist[m->hist_n - 1 - i];
+    }
+    int thresh = RSSI_METER_TREND_DB * k;
+    if (new_sum - old_sum >= thresh) {
+        return 1;
+    }
+    if (new_sum - old_sum <= -thresh) {
+        return -1;
+    }
+    return 0;
+}
+
 static void rssi_meter_apply(rssi_meter_t *m, int rssi, bool fresh) {
     if (!m || !m->active) return;
     m->last_rssi = (int8_t)rssi;
 
-    lv_color_t color = fresh ? rssi_meter_color(rssi) : lv_color_hex(0x666666);
+    int shown = rssi;
+    if (fresh) {
+        if (m->ema_db10 == RSSI_METER_EMA_UNINIT) {
+            m->ema_db10 = (int16_t)(rssi * 10);
+        } else {
+            m->ema_db10 = (int16_t)((m->ema_db10 + rssi * 10 + 1) / 2);
+        }
+        shown = (m->ema_db10 + (m->ema_db10 >= 0 ? 5 : -5)) / 10;
+        rssi_meter_hist_push(m, (int8_t)rssi);
+    }
+
+    lv_color_t color = fresh ? rssi_meter_color(shown) : lv_color_hex(0x666666);
 
     if (m->value_label && lv_obj_is_valid(m->value_label)) {
         char buf[8];
         if (!fresh && rssi <= -100) {
             strcpy(buf, "--");
         } else {
-            snprintf(buf, sizeof(buf), "%d", rssi);
+            snprintf(buf, sizeof(buf), "%d", shown);
         }
         lv_label_set_text(m->value_label, buf);
         lv_obj_set_style_text_color(m->value_label, color, 0);
@@ -111,7 +191,20 @@ static void rssi_meter_apply(rssi_meter_t *m, int rssi, bool fresh) {
         lv_obj_set_style_arc_color(m->ring, color, LV_PART_MAIN);
     }
 
-    rssi_meter_set_pulse(m, fresh ? rssi_meter_pulse_period(rssi) : 1400);
+    rssi_meter_set_pulse(m, fresh ? rssi_meter_pulse_period(shown) : 1400);
+
+    if (m->trend_label && lv_obj_is_valid(m->trend_label)) {
+        int trend = fresh ? rssi_meter_trend(m) : 0;
+        if (trend == 0) {
+            lv_obj_add_flag(m->trend_label, LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_label_set_text(m->trend_label, trend > 0 ? LV_SYMBOL_UP : LV_SYMBOL_DOWN);
+            lv_obj_set_style_text_color(m->trend_label, color, 0);
+            lv_obj_update_layout(m->value_label);
+            lv_obj_align_to(m->trend_label, m->value_label, LV_ALIGN_OUT_RIGHT_MID, 6, 0);
+            lv_obj_clear_flag(m->trend_label, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
 }
 
 static void rssi_meter_sample_timer_cb(lv_timer_t *t) {
@@ -169,6 +262,7 @@ static void rssi_meter_relayout(rssi_meter_t *m) {
     /* Fonts scale with the ring size. */
     const lv_font_t *val_font = rssi_meter_value_font(ring_d);
     lv_obj_set_style_text_font(m->value_label, val_font, 0);
+    lv_obj_set_style_text_font(m->trend_label, val_font, 0);
     lv_obj_set_style_text_font(m->unit_label, accessibility_get_font_small(), 0);
     lv_obj_set_style_text_font(m->subtext_label, sub_font, 0);
 
@@ -239,6 +333,14 @@ rssi_meter_t *rssi_meter_create(lv_obj_t *parent, const char *status_title,
     lv_label_set_text(m->unit_label, "dBm");
     lv_obj_set_style_text_color(m->unit_label, rssi_meter_color(m->last_rssi), 0);
     lv_obj_set_style_text_align(m->unit_label, LV_TEXT_ALIGN_CENTER, 0);
+
+    /* Trend arrow: anchored to the right of the value in apply(). Hidden
+     * until enough movement accumulates, so flat/stale reads change nothing
+     * visually for existing users. */
+    m->trend_label = lv_label_create(m->container);
+    lv_label_set_text(m->trend_label, "");
+    lv_obj_add_flag(m->trend_label, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_flag(m->trend_label, LV_OBJ_FLAG_SCROLLABLE);
 
     /* Subtext: tracked AP/STA name. */
     m->subtext_label = lv_label_create(m->container);

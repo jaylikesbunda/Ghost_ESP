@@ -131,6 +131,7 @@ typedef struct {
     int8_t last_rssi;
     int8_t min_rssi;
     int8_t max_rssi;
+    rssi_median_t med;
     int64_t last_rx_us;   // esp_timer timestamp of the last matching advertisement
     bool active;
 } TrackingState;
@@ -883,20 +884,37 @@ static void gatt_track_scan_callback(struct ble_gap_event *event, size_t len) {
     
     if (memcmp(event->disc.addr.val, g_tracking.addr.val, 6) == 0) {
         int8_t rssi = event->disc.rssi;
-        int8_t delta = rssi - g_tracking.last_rssi;
-        
+
         if (rssi > g_tracking.max_rssi) g_tracking.max_rssi = rssi;
         if (rssi < g_tracking.min_rssi) g_tracking.min_rssi = rssi;
-        
+
+        rssi_median_push(&g_tracking.med, rssi);
+        int8_t med = rssi_median_get(&g_tracking.med);
+        int8_t delta = med - g_tracking.last_rssi;
+        g_tracking.last_rssi = med;
+
         const char *direction = (delta > 5) ? "CLOSER" : (delta < -5) ? "FARTHER" : "";
-        
+
         static const char * const bars[] = {"", "#", "##", "###", "####", "#####"};
-        int bar_idx = (rssi > -50) ? 5 : (rssi > -60) ? 4 : (rssi > -70) ? 3 : 
-                      (rssi > -80) ? 2 : (rssi > -90) ? 1 : 0;
-        
-        glog("[%s] RSSI: %d dBm, Min: %d, Max: %d, %s\n",
-             bars[bar_idx], rssi, g_tracking.min_rssi, g_tracking.max_rssi, direction);
-        g_tracking.last_rssi = rssi;
+        int bar_idx = (med > -50) ? 5 : (med > -60) ? 4 : (med > -70) ? 3 :
+                      (med > -80) ? 2 : (med > -90) ? 1 : 0;
+
+        int close_pct = -1;
+        if (g_tracking.max_rssi > g_tracking.min_rssi) {
+            close_pct = (med - g_tracking.min_rssi) * 100 /
+                        (g_tracking.max_rssi - g_tracking.min_rssi);
+            if (close_pct < 0) close_pct = 0;
+            if (close_pct > 100) close_pct = 100;
+        }
+
+        if (close_pct >= 0) {
+            glog("[%s] RSSI: %d dBm, Min: %d, Max: %d, Close: %d%%, %s\n",
+                 bars[bar_idx], med, g_tracking.min_rssi, g_tracking.max_rssi,
+                 close_pct, direction);
+        } else {
+            glog("[%s] RSSI: %d dBm, Min: %d, Max: %d, %s\n",
+                 bars[bar_idx], med, g_tracking.min_rssi, g_tracking.max_rssi, direction);
+        }
         g_tracking.last_rx_us = esp_timer_get_time();
     }
 }
@@ -1194,6 +1212,8 @@ void gatt_scan_track_device(void) {
     g_tracking.last_rssi = dev->rssi;
     g_tracking.min_rssi = dev->rssi;
     g_tracking.max_rssi = dev->rssi;
+    rssi_median_reset(&g_tracking.med);
+    rssi_median_push(&g_tracking.med, dev->rssi);
     g_tracking.last_rx_us = esp_timer_get_time();
     g_tracking.active = true;
     

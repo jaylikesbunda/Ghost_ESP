@@ -157,6 +157,22 @@ size_t format_hex_bytes(const uint8_t *data, size_t len, char *buf, size_t buf_s
  */
 const char *rssi_to_proximity(int8_t rssi);
 
+/* Small fixed-capacity median filter for smoothing RSSI at the source
+ * (per-packet callbacks). No heap, no IRAM requirements — safe to use from
+ * WiFi promiscuous and NimBLE GAP callbacks. Median rejects single-packet
+ * multipath outliers better than an average; display-level EMA then only
+ * has to polish. */
+#define RSSI_MEDIAN_CAP 8
+
+typedef struct {
+    int8_t v[RSSI_MEDIAN_CAP];
+    uint8_t n;
+} rssi_median_t;
+
+void rssi_median_reset(rssi_median_t *m);
+void rssi_median_push(rssi_median_t *m, int8_t rssi);
+int8_t rssi_median_get(const rssi_median_t *m);
+
 // ============================================================================
 // Network Scanning Utilities
 // ============================================================================

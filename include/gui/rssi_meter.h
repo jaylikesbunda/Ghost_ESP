@@ -12,7 +12,9 @@ extern "C" {
  * rssi_meter: a lightweight live signal-strength view used by the Track AP /
  * Track Station options. It draws a pulsating ring whose colour follows the
  * RSSI, with the dBm value centred inside the ring and the tracked target name
- * shown as subtext at the bottom. It mirrors the overlay flow used by the scan
+ * shown as subtext at the bottom. Displayed readings are EMA-smoothed and a
+ * trend arrow appears beside the value once enough movement accumulates
+ * (warmer/colder); flat or stale reads show no arrow. It mirrors the overlay flow used by the scan
  * spinner (gui/scan_status) and detail_view: a single heap allocation, parented
  * onto lv_scr_act() so the shared options touch bar stays visible underneath.
  *

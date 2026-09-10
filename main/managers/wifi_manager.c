@@ -2359,6 +2359,10 @@ void wifi_manager_start_monitor_mode(wifi_promiscuous_cb_t_t callback) {
     } else if (callback == wifi_eapol_scan_callback) {
         // capture mgmt, data, and ctrl for full handshake context
         filter.filter_mask = WIFI_PROMIS_FILTER_MASK_MGMT | WIFI_PROMIS_FILTER_MASK_DATA | WIFI_PROMIS_FILTER_MASK_CTRL;
+    } else if (callback == wifi_track_callback) {
+        // tracking needs MGMT (AP beacons) + DATA (active stations);
+        // CTRL frames carry no usable RSSI targets, so leave them out.
+        filter.filter_mask = WIFI_PROMIS_FILTER_MASK_MGMT | WIFI_PROMIS_FILTER_MASK_DATA;
     } else {
         // Default: capture all frame types (for raw capture, SAE flood, etc.)
         filter.filter_mask = WIFI_PROMIS_FILTER_MASK_ALL;
@@ -5168,59 +5172,92 @@ static volatile bool sta_tracking_active = false;
 static int8_t tracking_last_rssi = 0;
 static int8_t tracking_min_rssi = 0;
 static int8_t tracking_max_rssi = -127;
+static rssi_median_t tracking_med = {0};
 static int64_t tracking_last_rx_us = 0; // timestamp of last matched packet (signal freshness)
 
+// 802.11 Frame Control is little-endian on ESP32: bits 2-3 = type,
+// bits 4-7 = subtype. Beacons are MGMT (type 0) subtype 8.
+#define WIFI_FC_TYPE_SUBTYPE_MASK 0x00FC
+#define WIFI_FC_BEACON            0x0080
+
+/* Closeness of the smoothed reading within this session's observed
+ * [min, max] range, 0-100. More meaningful than absolute dBm when comparing
+ * devices with different transmit powers. */
+int wifi_manager_get_track_closeness(void) {
+    if (!ap_tracking_active && !sta_tracking_active) return -1;
+    if (tracking_max_rssi <= tracking_min_rssi) return -1;
+    int pct = (tracking_last_rssi - tracking_min_rssi) * 100 /
+              (tracking_max_rssi - tracking_min_rssi);
+    if (pct < 0) pct = 0;
+    if (pct > 100) pct = 100;
+    return pct;
+}
+
 static void wifi_track_callback(void *buf, wifi_promiscuous_pkt_type_t type) {
-    if (type != WIFI_PKT_MGMT) return;
-    
+    if (type != WIFI_PKT_MGMT && type != WIFI_PKT_DATA) return;
+    bool is_mgmt = (type == WIFI_PKT_MGMT);
+
     const wifi_promiscuous_pkt_t *pkt = (wifi_promiscuous_pkt_t *)buf;
     const wifi_ieee80211_packet_t *ipkt = (wifi_ieee80211_packet_t *)pkt->payload;
     wifi_ieee80211_mac_hdr_t hdr_copy;
     memcpy(&hdr_copy, &ipkt->hdr, sizeof(hdr_copy));
     const wifi_ieee80211_mac_hdr_t *hdr = &hdr_copy;
-    
+
     int8_t rssi = pkt->rx_ctrl.rssi;
     bool match = false;
-    
+
     if (ap_tracking_active && strlen((const char *)selected_ap.ssid) > 0) {
-        // track ap by bssid (addr2 for beacons)
-        if (memcmp(hdr->addr2, selected_ap.bssid, 6) == 0) {
+        // APs: beacons only (periodic, consistent rate/power). Probe
+        // responses and other MGMT at varying rates would add jitter.
+        // addr2 carries the BSSID on beacons.
+        if (is_mgmt && (hdr->frame_ctrl & WIFI_FC_TYPE_SUBTYPE_MASK) == WIFI_FC_BEACON &&
+            memcmp(hdr->addr2, selected_ap.bssid, 6) == 0) {
             match = true;
         }
     }
-    
+
     if (sta_tracking_active && station_selected) {
-        // track station by mac address (addr2 for frames from sta)
+        // Stations: MGMT + data (data frames are far denser when the client
+        // is active). addr2 is the transmitter in both cases for STA->AP.
         if (memcmp(hdr->addr2, selected_station.station_mac, 6) == 0) {
             match = true;
         }
     }
-    
+
     if (!match) return;
-    
-    int8_t delta = rssi - tracking_last_rssi;
-    
+
     if (rssi > tracking_max_rssi) tracking_max_rssi = rssi;
     if (rssi < tracking_min_rssi) tracking_min_rssi = rssi;
-    
+
+    rssi_median_push(&tracking_med, rssi);
+    int8_t med = rssi_median_get(&tracking_med);
+    int8_t delta = med - tracking_last_rssi;
+    tracking_last_rssi = med;
+
     const char *direction = "";
     if (delta > 5) direction = " ↑ CLOSER";
     else if (delta < -5) direction = " ↓ FARTHER";
-    
+
     int bars = 0;
-    if (rssi > -50) bars = 5;
-    else if (rssi > -60) bars = 4;
-    else if (rssi > -70) bars = 3;
-    else if (rssi > -80) bars = 2;
-    else if (rssi > -90) bars = 1;
-    
+    if (med > -50) bars = 5;
+    else if (med > -60) bars = 4;
+    else if (med > -70) bars = 3;
+    else if (med > -80) bars = 2;
+    else if (med > -90) bars = 1;
+
     char bar_str[8] = "";
     for (int i = 0; i < bars; i++) {
         strcat(bar_str, "#");
     }
-    
-    glog("%s %d dBm (min:%d max:%d)%s\n", bar_str, rssi, tracking_min_rssi, tracking_max_rssi, direction);
-    tracking_last_rssi = rssi;
+
+    int close_pct = wifi_manager_get_track_closeness();
+    if (close_pct >= 0) {
+        glog("%s %d dBm (min:%d max:%d close:%d%%)%s\n", bar_str, med,
+             tracking_min_rssi, tracking_max_rssi, close_pct, direction);
+    } else {
+        glog("%s %d dBm (min:%d max:%d)%s\n", bar_str, med,
+             tracking_min_rssi, tracking_max_rssi, direction);
+    }
     tracking_last_rx_us = esp_timer_get_time();
 }
 
@@ -5258,6 +5295,7 @@ void wifi_manager_track_ap(void) {
     tracking_last_rssi = selected_ap.rssi;
     tracking_min_rssi = selected_ap.rssi;
     tracking_max_rssi = selected_ap.rssi;
+    rssi_median_reset(&tracking_med);
     tracking_last_rx_us = esp_timer_get_time();
     ap_tracking_active = true;
     sta_tracking_active = false;
@@ -5296,6 +5334,7 @@ void wifi_manager_track_sta(void) {
     tracking_last_rssi = -100;
     tracking_min_rssi = -100;
     tracking_max_rssi = -127;
+    rssi_median_reset(&tracking_med);
     tracking_last_rx_us = 0; // no station packet seen yet
     ap_tracking_active = false;
     sta_tracking_active = true;

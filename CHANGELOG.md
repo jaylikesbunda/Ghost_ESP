@@ -31,13 +31,15 @@ Untagged entries are by ([@jaylikesbunda](https://github.com/jaylikesbunda)). A 
   - Exposure beacons. Adapted from [Theengs](https://github.com/theengs/decoder/blob/development/src/devices/GAEN_json.h)
   - Chameleon Ultra. Adapted from `chameleon_manager.c` and [Nordic docs](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/libraries/bluetooth_services/services/nus.html)
 
+### Changed
+- Reorganized Settings menu categories for easier navigation
+- Smoothed and improved stability and reliability of the Track RSSI readout and added a warmer/colder trend arrow
+
 ### Fixed
 - Fixed BadBLE touch-drag scrolling
 - Fixed CrowPanel display startup configs
 - Fixed ESP32-C5 merged firmware failing to boot when flashed at `0x0` by placing the bootloader at the required `0x2000` offset - @yanxke (#395)
 
-### Changed
-- Reorganized Settings menu categories for easier navigation
 
 ## Revival v2.1.2
 

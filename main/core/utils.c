@@ -364,6 +364,36 @@ const char *rssi_to_proximity(int8_t rssi) {
   return "Out of Range";
 }
 
+void rssi_median_reset(rssi_median_t *m) {
+  if (m) m->n = 0;
+}
+
+void rssi_median_push(rssi_median_t *m, int8_t rssi) {
+  if (!m) return;
+  if (m->n >= RSSI_MEDIAN_CAP) {
+    memmove(m->v, m->v + 1, RSSI_MEDIAN_CAP - 1);
+    m->n = RSSI_MEDIAN_CAP - 1;
+  }
+  m->v[m->n++] = rssi;
+}
+
+int8_t rssi_median_get(const rssi_median_t *m) {
+  if (!m || m->n == 0) return -100;
+  int8_t sorted[RSSI_MEDIAN_CAP];
+  memcpy(sorted, m->v, m->n);
+  for (uint8_t i = 1; i < m->n; i++) {
+    int8_t key = sorted[i];
+    uint8_t j = i;
+    while (j > 0 && sorted[j - 1] > key) {
+      sorted[j] = sorted[j - 1];
+      j--;
+    }
+    sorted[j] = key;
+  }
+  if (m->n & 1) return sorted[m->n / 2];
+  return (int8_t)((sorted[m->n / 2 - 1] + sorted[m->n / 2]) / 2);
+}
+
 // ============================================================================
 // Network Scanning Utilities
 // ============================================================================
