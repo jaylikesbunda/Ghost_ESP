@@ -468,6 +468,7 @@ void register_commands() {
     register_command("commstatus", handle_comm_status);
     register_command("commdisconnect", handle_comm_disconnect);
     register_command("commsetpins", handle_comm_setpins);
+    register_command("glbench", handle_glbench_cmd);
 #if GHOSTESP_OTA_SUPPORTED
     // Only registered on 8MB/16MB boards -- these handlers live in
     // peer_ota_manager.c, so registering them unconditionally would pull

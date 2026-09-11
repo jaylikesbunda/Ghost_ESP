@@ -353,7 +353,8 @@ void shell_print_command_help(const char *command) {
         {"grep", "grep <pattern> <file>"}, {"source", "source <file>"},
         {"tee", "tee <file> <text>"}, {"env", "env"}, {"export", "export NAME=value"},
         {"watch", "watch <seconds> <command> | watch stop"},
-        {"hop", "hop [auto|all|basic|custom <channels>|<channels>]"}
+        {"hop", "hop [auto|all|basic|custom <channels>|<channels>]"},
+        {"glbench", "glbench [send|recv|both] [kb] | glbench stop | glbench status"}
     };
     for (size_t i = 0; i < sizeof(help) / sizeof(help[0]); ++i) {
         if (strcasecmp(command, help[i].name) == 0) {

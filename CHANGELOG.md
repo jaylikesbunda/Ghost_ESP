@@ -21,6 +21,7 @@ Untagged entries are by ([@jaylikesbunda](https://github.com/jaylikesbunda)). A 
 - Added Elecrow CrowPanel 1.28-inch rotary display support with USB Audio volume/mute control
 - Added `mdnssniff` passive local-name sniffer (mDNS/LLMNR/SSDP/NetBIOS) per ARP-discovered host
 - Added a `bledetect` CLI command for the device detect scan with list, track and AirTag spoof actions
+- Added a `glbench` CLI command and Settings > Tools row to benchmark GhostLink throughput and view link statistics
 - Added more devices to the BLE detect devices scan
   - Tile trackers. Ported from `gatt_scan.c`, adapted from [Flock-You-Android](https://github.com/MaxwellDPS/Flock-You-Android/blob/main/docs/detections/BLE_TRACKER_DETECTION.md) and [Silabs](https://docs.silabs.com/bluetooth/2.13/bluetooth-code-examples-applications/bluetooth-device-tracking-with-tile)
   - Samsung SmartTag. Adapted from [arxiv 2210.14702](https://arxiv.org/pdf/2210.14702) and [adwatch](https://github.com/bensmith83/adwatch/blob/main/docs/protocols/smarttag.md)
@@ -47,6 +48,7 @@ Untagged entries are by ([@jaylikesbunda](https://github.com/jaylikesbunda)). A 
 - Cleaned up boot and GhostLink console output
 - Restyled the on-screen keyboard with a standard iOS-style layout
 - Wi-Fi and Bluetooth scan result menus now scroll as a single list instead of paging through `< Prev` / `Next >` rows
+- Raised the Banshee GhostLink UART to 921600 baud and enlarged the UART receive buffer to 2048 bytes so the higher rate does not increase receive loss
 
 ### Fixed
 - Fixed GhostScript crash when an event listener received an event

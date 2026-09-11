@@ -1925,6 +1925,7 @@ static SettingsItem settings_items[] = {
     {"Auto Save Scans", SETTING_AUTO_SAVE_SCANS, bool_options, 2, 1, SETTINGS_CAT_SCAN_SAVING, false, NULL, SETTING_WIDGET_TOGGLE},
     {"Run Setup Wizard", SETTING_RUN_SETUP_WIZARD, action_options, 1, 0, SETTINGS_CAT_SYSTEM_TOOLS, false, NULL, SETTING_WIDGET_VALUE_CYCLE},
     {"I2C Bus Scan", SETTING_I2C_SCAN, action_options, 1, 0, SETTINGS_CAT_SYSTEM_TOOLS, false, NULL, SETTING_WIDGET_VALUE_CYCLE},
+    {"GhostLink Benchmark", SETTING_GL_BENCH, action_options, 1, 0, SETTINGS_CAT_SYSTEM_TOOLS, false, NULL, SETTING_WIDGET_VALUE_CYCLE},
     {"Export Settings SD", SETTING_EXPORT_SETTINGS_SD, action_options, 1, 0, SETTINGS_CAT_BACKUP_RESET, false, NULL, SETTING_WIDGET_VALUE_CYCLE},
     {"Import Settings SD", SETTING_IMPORT_SETTINGS_SD, action_options, 1, 0, SETTINGS_CAT_BACKUP_RESET, false, NULL, SETTING_WIDGET_VALUE_CYCLE},
     {"Factory Reset", SETTING_FACTORY_RESET, action_options, 1, 0, SETTINGS_CAT_BACKUP_RESET, false, NULL, SETTING_WIDGET_VALUE_CYCLE},
@@ -4975,6 +4976,11 @@ static void apply_setting_change(int setting_index, int new_value) {
             terminal_set_return_view(&options_menu_view);
             display_manager_switch_view(&terminal_view);
             io_manager_scan_i2c();
+            return;
+        case SETTING_GL_BENCH:
+            terminal_set_return_view(&options_menu_view);
+            display_manager_switch_view(&terminal_view);
+            simulateCommand("glbench");
             return;
         case SETTING_EXPORT_SETTINGS_SD: {
             esp_err_t err = settings_backup_export_to_sd();

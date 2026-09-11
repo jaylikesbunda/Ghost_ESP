@@ -4,6 +4,7 @@
 #include "core/commands.h"
 #include "core/glog.h"
 #include "core/esp_comm_manager.h"
+#include "core/ghostlink_bench.h"
 #include "managers/ghostscript_runtime.h"
 #include "managers/settings_manager.h"
 #include "managers/status_display_manager.h"
@@ -177,6 +178,10 @@ static void comm_command_callback(const char* command, const char* data, void* u
     snprintf(comm_payload, sizeof(comm_payload), "%s|%s",
              command ? command : "", data ? data : "");
     ghostscript_emit_event_escaped("comm_command", comm_payload);
+
+    if (ghostlink_bench_handle_command(command, data)) {
+        return;
+    }
 
 #ifdef CONFIG_WITH_ETHERNET
     if (eth_comm_handler_handle_command(command, data)) {

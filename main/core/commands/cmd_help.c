@@ -291,6 +291,7 @@ void handle_help(int argc, char **argv) {
         glog("commstatus\n    Show communication status.\n    Usage: commstatus\n\n");
         glog("commdisconnect\n    Disconnect from current peer.\n    Usage: commdisconnect\n\n");
         glog("commsetpins\n    Change communication GPIO pins at runtime.\n    Usage: commsetpins <tx_pin> <rx_pin>\n    Example: commsetpins 4 5\n\n");
+        glog("glbench\n    Measure GhostLink throughput in both directions.\n    Usage: glbench [send|recv|both] [kb]\n           glbench stop | glbench status\n    Example: glbench send 512\n\n");
 #if !defined(CONFIG_IDF_TARGET_ESP32S2) && !defined(GHOSTESP_NO_NATIVE_BLE)
         glog("blebridge\n    Start/status/stop the BLE GhostLink bridge.\n    Usage: blebridge [start|stop|status|pair <peer_name>]\n\n");
 #endif

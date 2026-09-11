@@ -25,6 +25,7 @@
 #include "managers/plugin_manager.h"
 #include "esp_wifi.h"
 #include "core/esp_comm_manager.h"
+#include "core/ghostlink_bench.h"
 #include "managers/status_display_manager.h"
 #if defined(CONFIG_IDF_TARGET_ESP32P4)
 #include "esp_hosted.h"
@@ -983,6 +984,7 @@ void app_main(void) {
 #endif
     wardriving_register_stream_handler();
     usb_keyboard_manager_register_stream_handler();
+    ghostlink_bench_init();
 #ifdef CONFIG_HAS_BADUSB
     badusb_manager_register_stream_handler();
 #endif
