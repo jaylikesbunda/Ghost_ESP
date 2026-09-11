@@ -1,8 +1,15 @@
+# Elecrow CrowPanel Advanced P4 (7/9/10.1-inch MIPI and 5-inch RGB), 16MB flash.
+#
+# App slots are 4.5MB: the LoRa/Meshtastic build links to ~4.17MB (0x42A930),
+# which no longer fits the old 4MB slots. The factory slot must also hold the
+# app because the release bundle flashes the merged image at the factory offset.
+# slave_fw holds the bundled C6 ESP-Hosted image (~1.2MB) and keeps 2MB.
+#
 # Name,     Type, SubType, Offset, Size, Flags
-nvs,        data, nvs,     ,      0x4000,
-otadata,    data, ota,     ,      0x2000,
-phy_init,   data, phy,     ,      0x1000,
-factory,    app,  factory, ,      0x400000,
-ota_0,      app,  ota_0,   ,      0x400000,
-ota_1,      app,  ota_1,   ,      0x400000,
-slave_fw,   data, 0x40,    ,      0x200000,
+nvs,        data, nvs,     ,       0x4000,
+otadata,    data, ota,     ,       0x2000,
+phy_init,   data, phy,     ,       0x1000,
+factory,    app,  factory, ,       0x480000,
+ota_0,      app,  ota_0,   ,       0x480000,
+ota_1,      app,  ota_1,   ,       0x480000,
+slave_fw,   data, 0x40,    ,       0x200000,

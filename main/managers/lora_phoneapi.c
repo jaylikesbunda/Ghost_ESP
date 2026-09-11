@@ -651,8 +651,9 @@ static void admin_shutdown_task(void *arg) {
     // Wake sources: GPIO0 (Heltec V3 PRG button, active-low) + 24h timer
     // failsafe. After esp_deep_sleep_start() only RTC wake (ext0/ext1/timer)
     // + the RESET button work; USB/UART/BLE stay down until wake. A PRG press
-    // pulls GPIO0 low -> wake + reboot. If ext0 is unsupported on this target
-    // it falls back to ext1; the timer bounds sleep even if GPIO0 floats.
+    // pulls GPIO0 low -> wake + reboot. EXT0 is used where the target has it
+    // (S3/C3 classic RTC IO); ESP32-P4 has EXT1 only, so select at compile
+    // time. The timer bounds sleep even if GPIO0 floats.
     // (No light-sleep fallback here: radio+BLE are already stopped below, so
     // a deep-sleep refusal still idles safely — see tail of this task.)
     lora_ble_notify_from_num(); // flush the ACK notify first
@@ -662,11 +663,21 @@ static void admin_shutdown_task(void *arg) {
     lora_manager_stop(); // stops the LoRa radio + disconnects BLE
     vTaskDelay(pdMS_TO_TICKS(100));
     esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL);
+#if SOC_PM_SUPPORT_EXT0_WAKEUP
     if (esp_sleep_enable_ext0_wakeup(GPIO_NUM_0, 0) != ESP_OK) {
         ESP_LOGW(TAG, "admin shutdown: ext0 GPIO0 unsupported, trying ext1");
         (void)esp_sleep_enable_ext1_wakeup_io(1ULL << GPIO_NUM_0,
                                               ESP_EXT1_WAKEUP_ANY_LOW);
     }
+#elif SOC_PM_SUPPORT_EXT1_WAKEUP
+    // ESP32-P4 has no EXT0/RTC-IO wakeup; GPIO0 is an LP/RTC pin, so use EXT1.
+    if (esp_sleep_enable_ext1_wakeup_io(1ULL << GPIO_NUM_0,
+                                        ESP_EXT1_WAKEUP_ANY_LOW) != ESP_OK) {
+        ESP_LOGW(TAG, "admin shutdown: ext1 GPIO0 wake unsupported, timer only");
+    }
+#else
+    ESP_LOGW(TAG, "admin shutdown: GPIO wake unsupported, timer wake only");
+#endif
     (void)esp_sleep_enable_timer_wakeup(24ULL * 3600ULL * 1000000ULL);
     ESP_LOGI(TAG, "admin shutdown: entering deep sleep now");
     vTaskDelay(pdMS_TO_TICKS(100)); // let the log flush

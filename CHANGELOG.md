@@ -12,6 +12,7 @@ Untagged entries are by ([@jaylikesbunda](https://github.com/jaylikesbunda)). A 
   - Elecrow CrowPanel Advance 2.4-inch
   - Elecrow CrowPanel Advance 2.8-inch
   - Elecrow CrowPanel Advance 4.3-inch
+  - Elecrow CrowPanel Advanced P4 7/9/10.1-inch (v1.1 and v1.2+, wireless Meshtastic module)
 - Added USB SD card passthrough on ESP32-S3 boards with an SD card
 - Added custom channel hopping setting that applies to deauth, beacon spam, AP and station scans, airspace monitor, and packet visualizer/capture hopping.
 - Added a Country selector to Settings > Wi-Fi for display UI

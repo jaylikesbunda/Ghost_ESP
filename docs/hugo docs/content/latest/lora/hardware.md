@@ -29,6 +29,27 @@ The profile matches Elecrow/Meshtastic wiring: SPI `SCK=GPIO5`, `MISO=GPIO4`, `M
 
 Expected ready-log suffix: `pins=6/4/5/0 irq=20 busy=2 rst=19 tcxo=0x07`.
 
+## Elecrow CrowPanel Advanced P4 7/9/10.1 (Meshtastic wireless module)
+
+Use `sdkconfig.crowpanel_advanced_p4_mipi_1024x600` (v1.2+) or
+`sdkconfig.crowpanel_advanced_p4_mipi_1024x600_v11` (v1.1) with the Elecrow
+SX1262 module in the wireless socket. The module shares the SPI3/GPIO27/28
+expansion path with the optional nRF24 and UART passthrough, so only one of
+those functions can be enabled per build.
+
+The socket follows Elecrow's `RADIO_GPIO_*` defines: SPI `SCK=GPIO8`, `MISO=GPIO7`,
+`MOSI=GPIO6`, `NSS=GPIO10`, and `BUSY=GPIO9`. **DIO1/RESET are GPIO27/28** on
+v1.2+ boards or **GPIO53/54** on v1.1. The module's DIO3 TCXO is configured for
+**3.3 V**. Unlike the S3 Advance boards, the onboard C6 SDIO (GPIO14-19) and the
+microSD (SDMMC GPIO39/43/44) use separate pins, so Wi-Fi/BT and SD stay
+available while LoRa is running. The profile also parks the default GhostLink
+UART pins (TX GPIO6 / RX GPIO7) so boot never claims the radio's MOSI/MISO.
+After flashing, run `lora start`, then confirm `SX1262 ready` and use
+`lora status`/`lora diag`.
+
+Expected ready-log suffix (v1.2+): `pins=6/7/8/10 irq=27 busy=9 rst=28 tcxo=0x07`.
+Expected ready-log suffix (v1.1): `pins=6/7/8/10 irq=53 busy=9 rst=54 tcxo=0x07`.
+
 ## Elecrow CrowPanel Advance 2.4 / 2.8 (wireless module)
 
 Use `sdkconfig.crowpanel_advance24` or `sdkconfig.crowpanel_advance28` with the Elecrow SX1262 module attached. The firmware drives the module-select pin during `lora start`; these small-panel profiles keep the display on SPI2 and reserve SPI3 for the radio, so SD/TF is intentionally skipped while LoRa is enabled.

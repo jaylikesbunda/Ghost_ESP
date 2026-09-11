@@ -17,7 +17,12 @@
 #define S_TAG "SETTINGS"
 
 static bool settings_should_use_noop_dualcomm_pins(void) {
-#if defined(CONFIG_CROWPANEL_ADVANCE_S3_LCD)
+#if defined(CONFIG_CROWPANEL_ADVANCED_P4) && defined(CONFIG_HAS_LORA)
+  // CrowPanel P4 wireless-module mode: the GhostLink UART defaults (TX GPIO6 /
+  // RX GPIO7) are the SX1262 SPI MOSI/MISO. Park them instead of fighting the
+  // radio; this board's expansion UART is on GPIO47/48 (J2).
+  return true;
+#elif defined(CONFIG_CROWPANEL_ADVANCE_S3_LCD)
   // Standalone SD profile: the generic UART pins overlap SD MOSI and RGB R0.
   // Override saved defaults too, so existing installations need no NVS erase.
   return true;
