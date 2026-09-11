@@ -208,7 +208,6 @@ done:
             s_runtime_mutex = NULL;
         }
     }
-    free(task_args);
     s_script_task = NULL;
     xSemaphoreGive(s_lifecycle_mutex);
     if (relaunch) {
