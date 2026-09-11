@@ -3262,6 +3262,7 @@ CONFIG_TINYUSB_DESC_SERIAL_STRING="123456"
 # Mass Storage Class (MSC)
 #
 CONFIG_TINYUSB_MSC_ENABLED=y
+CONFIG_TINYUSB_HID_COUNT=0
 # end of Mass Storage Class (MSC)
 
 #
@@ -3279,7 +3280,6 @@ CONFIG_TINYUSB_MIDI_COUNT=0
 #
 # Human Interface Device Class (HID)
 #
-CONFIG_TINYUSB_HID_COUNT=0
 # end of Human Interface Device Class (HID)
 
 #
