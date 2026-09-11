@@ -215,6 +215,11 @@ void display_manager_restore_status_bar(void);
 void display_manager_set_low_i2c_mode(bool on);
 bool display_manager_is_low_i2c_mode(void);
 
+/* Pause/resume the periodic 500ms status-bar refresh. Used to keep the screen
+ * fully static (no LVGL invalidations -> no SPI display flushes) during
+ * RF-sensitive windows like SubGHz capture on shared-SPI boards. */
+void display_manager_set_status_updates_enabled(bool enabled);
+
 void display_manager_suspend_lvgl_task(void);
 void display_manager_resume_lvgl_task(void);
 void display_manager_suspend_input_task(void);

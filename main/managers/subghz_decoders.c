@@ -881,60 +881,124 @@ bool subghz_decode_gate_tx(const int32_t *dur, size_t count, uint64_t *out_code,
     return false;
 }
 
-/*
- * KeeLoq: te_short=400, te_long=800, te_delta=180, bits=64
- * Encoding: H_short+L_long=1, H_long+L_short=0 (INVERTED)
- * Preamble: ~11 pairs of H_short+L_short, then H_short+L_short*10 gap
- */
-bool subghz_decode_keeloq(const int32_t *dur, size_t count, uint64_t *out_code, int *out_bits) {
-    if (count < 100) return false;
-    const int32_t te_s = 400, te_l = 800, te_d = 180;
-
-    size_t start = 0;
-    for (size_t i = 0; i + 23 < count; i++) {
-        size_t j = i;
-        int pre_ok = 1;
-        for (int k = 0; k < 11; k++) {
-            if (!(dur[j] > 0 && DURATION_DIFF(dur[j], te_s) < te_d &&
-                  dur[j + 1] < 0 && DURATION_DIFF(DUR_ABS(dur[j + 1]), te_s) < te_d)) {
-                pre_ok = 0;
-                break;
-            }
-            j += 2;
-        }
-        if (!pre_ok) continue;
-        if (dur[j] > 0 && DURATION_DIFF(dur[j], te_s) < te_d &&
-            dur[j + 1] < 0 && DURATION_DIFF(DUR_ABS(dur[j + 1]), te_s * 10) < te_d * 10) {
-            start = j + 2;
-            break;
-        }
+bool subghz_decode_keeloq_rcswitch23(const int32_t *dur,
+                                     size_t count,
+                                     uint64_t *out_code,
+                                     int *out_bits) {
+    if (!dur || !out_code || !out_bits || count <= 26) {
+        return false;
     }
-    if (start == 0) return false;
 
+    const int32_t delay = 400;
+    const int32_t tolerance = delay * 60 / 100;
     uint64_t code = 0;
     int bits = 0;
-    size_t i = start;
-    while (i + 1 < count && bits < 64) {
-        int32_t h = dur[i], l = dur[i + 1];
-        if (h > 0 && l < 0) {
-            int32_t hv = h, lv = -l;
-            if (DURATION_DIFF(hv, te_s) < te_d && DURATION_DIFF(lv, te_l) < te_d) {
-                code = (code << 1) | 1;
-                bits++; i += 2;
-            } else if (DURATION_DIFF(hv, te_l) < te_d && DURATION_DIFF(lv, te_s) < te_d) {
-                code = (code << 1) | 0;
-                bits++; i += 2;
-            } else {
-                break;
-            }
+
+    for (size_t i = 25; i + 1 < count && bits < 64; i += 2) {
+        int32_t first = DUR_ABS(dur[i]);
+        int32_t second = DUR_ABS(dur[i + 1]);
+        code <<= 1;
+        if (DURATION_DIFF(first, delay * 2) < tolerance &&
+            DURATION_DIFF(second, delay) < tolerance) {
+            /* zero */
+        } else if (DURATION_DIFF(first, delay) < tolerance &&
+                   DURATION_DIFF(second, delay * 2) < tolerance) {
+            code |= 1;
         } else {
-            break;
+            return false;
         }
+        bits++;
     }
-    if (bits == 64) {
+
+    if (count > 7 && bits > 0) {
         *out_code = code;
         *out_bits = bits;
         return true;
+    }
+    return false;
+}
+
+/*
+ * KeeLoq: te_short=400, te_long=800, bits=64.
+ * The classic RCSwitch protocol 23 decodes timing magnitudes and does not depend on
+ * which GDO edge polarity starts the capture, so keep this decoder polarity-tolerant.
+ *
+ * RMT captures on the T-Embed CC1101 pick up short spurious edges (3-180us)
+ * that split real 400/800us KeeLoq pulses; strict pair decoders then fail on
+ * the shifted pairs. Two-stage robust decode:
+ *   1. Deglitch: fold every segment shorter than 200us (half a KeeLoq TE, so
+ *      it can never be a legit KeeLoq pulse) into its same-level neighbours.
+ *   2. Sync scan: every long LOW (>=3ms: the 4ms header or an 11-25ms
+ *      inter-word gap) is a candidate; decode 64 PWM pairs after it with
+ *      protocol-23 polarity: (TE,2TE)=1, (2TE,TE)=0, tolerance 60%.
+ */
+#define SUBGHZ_KEELOQ_DEGLITCH_CAP 384U
+
+static size_t subghz_deglitch_durations(const int32_t *in, size_t count,
+                                        int32_t *out, size_t cap, int32_t min_us) {
+    size_t n = (count < cap) ? count : cap;
+    memcpy(out, in, n * sizeof(int32_t));
+
+    bool changed = true;
+    while (changed) {
+        changed = false;
+        for (size_t i = 0; i < n; i++) {
+            int32_t a = DUR_ABS(out[i]);
+            if (a >= min_us) continue;
+            if (i > 0 && i + 1 < n &&
+                (out[i - 1] < 0) == (out[i + 1] < 0)) {
+                /* spurious edge: neighbours share the level, fold all three */
+                int32_t m = DUR_ABS(out[i - 1]) + a + DUR_ABS(out[i + 1]);
+                out[i - 1] = (out[i - 1] < 0) ? -m : m;
+                memmove(&out[i], &out[i + 2], (n - i - 2) * sizeof(int32_t));
+                n -= 2;
+            } else {
+                /* boundary partial pulse: drop it */
+                memmove(&out[i], &out[i + 1], (n - i - 1) * sizeof(int32_t));
+                n -= 1;
+            }
+            changed = true;
+            break;
+        }
+    }
+    return n;
+}
+
+bool subghz_decode_keeloq(const int32_t *dur, size_t count, uint64_t *out_code, int *out_bits) {
+    if (!dur || !out_code || !out_bits || count < 40) {
+        return false;
+    }
+
+    int32_t clean[SUBGHZ_KEELOQ_DEGLITCH_CAP];
+    size_t n = subghz_deglitch_durations(dur, count, clean, SUBGHZ_KEELOQ_DEGLITCH_CAP, 200);
+
+    const int32_t te = 400;
+    const int32_t tol = te * 60 / 100;
+
+    for (size_t s = 0; s < n; s++) {
+        if (clean[s] > -3000) continue; /* sync candidates are long LOWs */
+        uint64_t code = 0;
+        int bits = 0;
+        size_t i = s + 1;
+        while (i + 1 < n && bits < 64) {
+            int32_t first = DUR_ABS(clean[i]);
+            int32_t second = DUR_ABS(clean[i + 1]);
+            code <<= 1;
+            if (DURATION_DIFF(first, te) < tol && DURATION_DIFF(second, te * 2) < tol) {
+                code |= 1;
+            } else if (DURATION_DIFF(first, te * 2) < tol && DURATION_DIFF(second, te) < tol) {
+                /* zero */
+            } else {
+                break;
+            }
+            bits++;
+            i += 2;
+        }
+        if (bits == 64) {
+            *out_code = code;
+            *out_bits = bits;
+            return true;
+        }
     }
     return false;
 }

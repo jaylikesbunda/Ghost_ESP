@@ -4,8 +4,10 @@
 #include "core/commands.h"
 #include "core/glog.h"
 #include "core/esp_comm_manager.h"
+#include "esp_wifi.h"
 #include "managers/status_display_manager.h"
 #include "managers/subghz_remote_manager.h"
+#include "managers/wifi_manager.h"
 #include "sdkconfig.h"
 
 #ifdef CONFIG_HAS_MIC
@@ -18,7 +20,7 @@
 
 void handle_subghz_cmd(int argc, char **argv) {
     if (argc < 2) {
-        glog("Usage: subghz <start|waterfall_start|stop|waterfall_stop|pause|resume|status|capture|capture_on|capture_off|capture_begin|cycle_freq|save|load|list|replay|state>\n");
+        glog("Usage: subghz <start|waterfall_start|stop|waterfall_stop|pause|resume|status|capture|capture_on|capture_off|capture_begin|cycle_freq|save|load|list|replay|state|probe|rxmode|writereg|readreg|wifioff|wifion>\n");
         return;
     }
 
@@ -119,6 +121,90 @@ void handle_subghz_cmd(int argc, char **argv) {
         glog("SubGHz scanner resumed\n");
         if (stream_to_peer) {
             esp_comm_manager_send_command("subghz", "state resumed");
+        }
+        return;
+    }
+
+    if (strcmp(sub, "probe") == 0) {
+        glog("SubGHz diag probe running -- watch the serial log. Hold a known remote when Phase D starts.\n");
+        subghz_remote_manager_diag_probe();
+        return;
+    }
+
+    if (strcmp(sub, "writereg") == 0) {
+        if (argc < 4) {
+            glog("Usage: subghz writereg <reg> <val>  (hex ok, e.g. subghz writereg 0x1D 0xB2)\n");
+            return;
+        }
+        uint32_t reg = strtoul(argv[2], NULL, 0);
+        uint32_t val = strtoul(argv[3], NULL, 0);
+        if (reg > 0x2E || val > 0xFF) {
+            glog("SubGHz writereg: reg must be <= 0x2E, val <= 0xFF\n");
+            return;
+        }
+        uint8_t rb = 0;
+        if (!subghz_remote_manager_debug_reg_write((uint8_t)reg, (uint8_t)val, &rb)) {
+            glog("SubGHz writereg failed: %s\n", subghz_remote_manager_get_last_error());
+            return;
+        }
+        glog("SubGHz reg 0x%02lX <- 0x%02lX (readback 0x%02X)\n",
+             (unsigned long)reg, (unsigned long)val, rb);
+        return;
+    }
+
+    if (strcmp(sub, "readreg") == 0) {
+        if (argc < 3) {
+            glog("Usage: subghz readreg <reg>  (hex ok)\n");
+            return;
+        }
+        uint32_t reg = strtoul(argv[2], NULL, 0);
+        if (reg > 0x2E) {
+            glog("SubGHz readreg: reg must be <= 0x2E\n");
+            return;
+        }
+        uint8_t val = 0;
+        if (!subghz_remote_manager_debug_reg_read((uint8_t)reg, &val)) {
+            glog("SubGHz readreg failed: %s\n", subghz_remote_manager_get_last_error());
+            return;
+        }
+        glog("SubGHz reg 0x%02lX = 0x%02X\n", (unsigned long)reg, val);
+        return;
+    }
+
+    /* RF-isolation experiment: the T-Embed CC1101 receiver catches only ~2%
+     * of a KeeLoq transmission with the S3 WiFi modem connected (2.4GHz PA
+     * activity next to a 433MHz LNA). Known-good receiver firmware for this
+     * board runs its RF modes WiFi-free. Stop the modem entirely and
+     * compare RMT burst dumps. */
+    if (strcmp(sub, "wifioff") == 0) {
+        wifi_manager_set_manual_disconnect(true);
+        (void)esp_wifi_disconnect();
+        esp_err_t err = esp_wifi_stop();
+        glog("WiFi modem stopped for SubGHz RX isolation (%s)\n", esp_err_to_name(err));
+        return;
+    }
+
+    if (strcmp(sub, "wifion") == 0) {
+        esp_err_t err = esp_wifi_start();
+        glog("WiFi modem started (%s) -- reconnect via UI or reboot\n", esp_err_to_name(err));
+        return;
+    }
+
+    if (strcmp(sub, "rxmode") == 0) {
+        if (argc >= 3) {
+            if (strcmp(argv[2], "rmt") == 0) {
+                subghz_remote_manager_set_tembed_rx_use_rmt(true);
+            } else if (strcmp(argv[2], "isr") == 0) {
+                subghz_remote_manager_set_tembed_rx_use_rmt(false);
+            } else {
+                glog("Usage: subghz rxmode <isr|rmt>\n");
+                return;
+            }
+            glog("SubGHz RX mode set to %s (applies on next capture arm)\n",
+                 subghz_remote_manager_get_tembed_rx_use_rmt() ? "rmt" : "isr");
+        } else {
+            glog("SubGHz RX mode: %s\n",
+                 subghz_remote_manager_get_tembed_rx_use_rmt() ? "rmt" : "isr");
         }
         return;
     }

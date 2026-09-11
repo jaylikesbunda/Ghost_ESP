@@ -491,6 +491,7 @@ static volatile bool s_input_gate_parked = false;
  * this must be recursive. */
 static SemaphoreHandle_t s_lvgl_call_mutex = NULL;
 static lv_timer_t *status_update_timer = NULL;
+static volatile bool s_status_updates_paused = false;
 static lv_timer_t *rainbow_timer = NULL;
 static uint16_t rainbow_hue = 0;
 /* Avoid redrawing a static status bar. Repeating the same update is expensive
@@ -1441,6 +1442,7 @@ void update_status_bar(bool wifi_enabled, bool bt_enabled, bool sd_card_mounted,
 }
 
 static void status_update_cb(lv_timer_t *timer) {
+  if (s_status_updates_paused) return; // Skip updates while RF-sensitive work runs
   if (!status_bar || !lv_obj_is_valid(status_bar)) return;
   if (is_backlight_off) return; // Skip updates when backlight is off
 
@@ -1494,6 +1496,14 @@ static void status_update_cb(lv_timer_t *timer) {
     lv_obj_clear_flag(level_label, LV_OBJ_FLAG_HIDDEN);
 #endif
   }
+}
+
+void display_manager_set_status_updates_enabled(bool enabled) {
+  /* Flag-gated instead of lv_timer_pause(): safe to call from any task without
+   * racing the LVGL render task's timer-list traversal. The callback still
+   * fires but touches no LVGL objects, so no area is invalidated and the
+   * display driver performs no SPI flush. */
+  s_status_updates_paused = !enabled;
 }
 
 void display_manager_update_status_bar_color(void) {

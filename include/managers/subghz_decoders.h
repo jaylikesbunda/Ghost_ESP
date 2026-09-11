@@ -46,6 +46,7 @@ bool subghz_decode_holtek_ht12x(const int32_t *dur, size_t count, uint64_t *out_
 bool subghz_decode_doitrand(const int32_t *dur, size_t count, uint64_t *out_code, int *out_bits);
 bool subghz_decode_gate_tx(const int32_t *dur, size_t count, uint64_t *out_code, int *out_bits);
 bool subghz_decode_keeloq(const int32_t *dur, size_t count, uint64_t *out_code, int *out_bits);
+bool subghz_decode_keeloq_rcswitch23(const int32_t *dur, size_t count, uint64_t *out_code, int *out_bits);
 bool subghz_decode_faac_slh(const int32_t *dur, size_t count, uint64_t *out_code, int *out_bits);
 bool subghz_decode_alutech_at_4n(const int32_t *dur, size_t count, uint64_t *out_code, int *out_bits);
 bool subghz_decode_marantec(const int32_t *dur, size_t count, uint64_t *out_code, int *out_bits);

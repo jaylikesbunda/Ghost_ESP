@@ -747,6 +747,19 @@ void app_main(void) {
         gpio_set_level(12, 1);
         ESP_LOGI(TAG, "CC1101 SS pin 12 set HIGH");
 
+        // SD Card CS pin
+        gpio_reset_pin(CONFIG_SD_SPI_CS_PIN);
+        gpio_set_direction(CONFIG_SD_SPI_CS_PIN, GPIO_MODE_OUTPUT);
+        gpio_set_level(CONFIG_SD_SPI_CS_PIN, 1);
+        ESP_LOGI(TAG, "SD Card CS pin %d set HIGH", CONFIG_SD_SPI_CS_PIN);
+
+        gpio_reset_pin(44);
+        gpio_set_direction(44, GPIO_MODE_OUTPUT);
+        gpio_set_level(44, 1);
+        gpio_reset_pin(43);
+        gpio_set_direction(43, GPIO_MODE_OUTPUT);
+        gpio_set_level(43, 0);
+        ESP_LOGI(TAG, "Shared NRF/W5500 isolated: CS44 HIGH, CE43 LOW");
     }
 #endif
 
