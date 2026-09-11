@@ -6,6 +6,8 @@ Untagged entries are by ([@jaylikesbunda](https://github.com/jaylikesbunda)). A 
 ## v2.2
 
 ### Added
+- Added a clock to the centre of the status bar, toggleable in Settings > Date & Time 
+- Added switchable analog and seven-segment clock faces to the Clock view
 - Added Meshtastic-compatible LoRa support for SX1262-family radios including BLE app support with the official Meshtastic App
 - Added LoRa support to:
   - Heltec V3
@@ -66,6 +68,8 @@ Untagged entries are by ([@jaylikesbunda](https://github.com/jaylikesbunda)). A 
 - Fixed semaphore leaks in Chameleon and audio receiver init failures
 - Fixed Cloud Store install progress showing "0 KB downloaded" during the install phase
 - Fixed detail view info labels being cut off instead of scrolling sideways when too wide
+- Fixed T-Watch S3 RTC using the wrong I2C bus and chip address
+- Fixed RTC boot restore trusting an invalid (power-lost) oscillator time
 
 
 ## Revival v2.1.2

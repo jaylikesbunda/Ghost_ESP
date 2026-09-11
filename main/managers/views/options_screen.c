@@ -1814,6 +1814,9 @@ static const char * const timezone_values[] = {
 };
 static const int timezone_count = sizeof(timezone_values) / sizeof(timezone_values[0]);
 
+// Clock view face style; index matches G_Settings.clock_style (0 = Digital).
+static const char * const clock_style_options[] = {"Digital", "Analog", "Segment"};
+
 // WiFi country labels kept in sync with setup_wizard_screen.c; the index is
 // the persisted G_Settings.wifi_country value.
 static const char * const country_setting_options[] = {
@@ -1914,6 +1917,8 @@ static SettingsItem settings_items[] = {
     {"WiFi Hop Channels", SETTING_HOP_CHANNELS, action_options, 1, 0, SETTINGS_CAT_WARDRIVING, false, NULL, SETTING_WIDGET_VALUE_CYCLE},
 
     {"Timezone", SETTING_TIMEZONE, timezone_options, 13, 0, SETTINGS_CAT_DATE_TIME, false, NULL, SETTING_WIDGET_VALUE_CYCLE},
+    {"Clock Style", SETTING_CLOCK_STYLE, clock_style_options, 3, 0, SETTINGS_CAT_DATE_TIME, false, NULL, SETTING_WIDGET_VALUE_CYCLE},
+    {"Status Bar Clock", SETTING_STATUS_BAR_CLOCK, bool_options, 2, 1, SETTINGS_CAT_DATE_TIME, false, NULL, SETTING_WIDGET_TOGGLE},
 
     {"Power Saving Mode", SETTING_POWER_SAVE, bool_options, 2, 0, SETTINGS_CAT_POWER, false, NULL, SETTING_WIDGET_TOGGLE},
 #if CONFIG_IDF_TARGET_ESP32S3
@@ -4701,6 +4706,14 @@ case SETTING_GPS_BAUD_RATE: {
                 settings_items[i].current_value = idx;
                 break;
             }
+            case SETTING_CLOCK_STYLE: {
+                uint8_t cs = settings_get_clock_style(&G_Settings);
+                settings_items[i].current_value = (cs < 3) ? cs : 0;
+                break;
+            }
+            case SETTING_STATUS_BAR_CLOCK:
+                settings_items[i].current_value = settings_get_status_bar_clock(&G_Settings) ? 1 : 0;
+                break;
             default:
                 settings_items[i].current_value = 0;
                 break;
@@ -5413,6 +5426,13 @@ case SETTING_GPS_BAUD_RATE:
                 setenv("TZ", timezone_values[new_value], 1);
                 tzset();
             }
+            break;
+        case SETTING_CLOCK_STYLE:
+            settings_set_clock_style(&G_Settings, (uint8_t)new_value);
+            break;
+        case SETTING_STATUS_BAR_CLOCK:
+            // Picked up live by the display manager's status timer.
+            settings_set_status_bar_clock(&G_Settings, new_value == 1);
             break;
         case SETTING_COUNTRY:
             if (new_value >= 0 && new_value < country_setting_count) {

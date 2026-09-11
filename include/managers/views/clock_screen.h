@@ -4,11 +4,6 @@
 #include "lvgl.h"
 #include "managers/display_manager.h"
 
-LV_IMG_DECLARE(watch_bg);
-LV_IMG_DECLARE(hour);
-LV_IMG_DECLARE(minute);
-LV_IMG_DECLARE(second);
-
 void clock_create(void);
 void clock_destroy(void);
 void get_clock_callback(void **callback);

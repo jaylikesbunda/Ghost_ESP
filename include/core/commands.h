@@ -54,6 +54,8 @@ void handle_timezone_cmd(int argc, char **argv);
 void handle_loadconfig_cmd(int argc, char **argv);
 void handle_web_auth_cmd(int argc, char **argv);
 void handle_webuiap_cmd(int argc, char **argv);
+void handle_clockstyle_cmd(int argc, char **argv);
+void handle_statusbarclock_cmd(int argc, char **argv);
 
 // BadUSB and USB keyboard host
 void handle_badusb_cmd(int argc, char **argv);

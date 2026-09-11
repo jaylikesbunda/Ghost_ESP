@@ -138,7 +138,17 @@ esp_err_t rtc_set_datetime(const RTC_Date *datetime) {
     data[4] = _dec_to_bcd(datetime->day);
     data[5] = _dec_to_bcd(datetime->month);
     data[6] = _dec_to_bcd(datetime->year % 100);
-    return _write_register(DS1307_SEC_REG, data, 7);
+    esp_err_t ret = _write_register(DS1307_SEC_REG, data, 7);
+    if (ret == ESP_OK && rtc_chip == RTC_CHIP_DS3231) {
+      // A successful time write means the oscillator is running; clear the
+      // Oscillator Stop Flag so the next boot trusts the stored time.
+      uint8_t status;
+      if (_read_register(DS3231_STATUS_REG, &status, 1) == ESP_OK) {
+        status &= ~DS3231_OSF_MASK;
+        _write_register(DS3231_STATUS_REG, &status, 1);
+      }
+    }
+    return ret;
   }
 }
 
@@ -268,6 +278,38 @@ esp_err_t rtc_check_voltage_low(bool *voltage_low) {
     return ESP_OK;
   } else {
     *voltage_low = false;
+    return ESP_OK;
+  }
+}
+
+esp_err_t rtc_check_time_valid(bool *time_valid) {
+  if (!time_valid) {
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  if (rtc_chip == RTC_CHIP_PCF8563) {
+    uint8_t sec;
+    esp_err_t ret = _read_register(PCF8563_SEC_REG, &sec, 1);
+    if (ret != ESP_OK) {
+      return ret;
+    }
+    *time_valid = (sec & PCF8563_VOL_LOW_MASK) == 0;
+    return ESP_OK;
+  } else if (rtc_chip == RTC_CHIP_DS3231) {
+    uint8_t status;
+    esp_err_t ret = _read_register(DS3231_STATUS_REG, &status, 1);
+    if (ret != ESP_OK) {
+      return ret;
+    }
+    *time_valid = (status & DS3231_OSF_MASK) == 0;
+    return ESP_OK;
+  } else {
+    uint8_t sec;
+    esp_err_t ret = _read_register(DS1307_SEC_REG, &sec, 1);
+    if (ret != ESP_OK) {
+      return ret;
+    }
+    *time_valid = (sec & DS1307_CH_MASK) == 0;
     return ESP_OK;
   }
 }

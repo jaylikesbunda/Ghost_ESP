@@ -34,6 +34,10 @@
 #define DS1307_YEAR_REG (0x06)
 #define DS1307_CONTROL_REG (0x07)
 
+// DS3231-only registers (time registers 0x00-0x06 match DS1307)
+#define DS3231_STATUS_REG (0x0F)
+#define DS3231_OSF_MASK (0x80) // Oscillator Stop Flag in the status register
+
 // DS1307 bit masks
 #define DS1307_CH_MASK (0x80)    // Clock Halt bit in seconds register
 #define DS1307_12H_MASK (0x40)   // 12-hour mode bit
@@ -82,6 +86,7 @@ esp_err_t rtc_get_alarm(RTC_Alarm *alarm);
 esp_err_t rtc_enable_alarm(void);
 esp_err_t rtc_disable_alarm(void);
 esp_err_t rtc_check_voltage_low(bool *voltage_low);
+esp_err_t rtc_check_time_valid(bool *time_valid);
 
 // Legacy functions for backward compatibility
 esp_err_t pcf8563_init(i2c_port_num_t i2c_port, uint8_t addr);

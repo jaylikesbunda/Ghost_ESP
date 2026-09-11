@@ -172,6 +172,9 @@ typedef enum {
     SETTING_WIFI_AUTO_RECONNECT,
     // Timezone quick-edit
     SETTING_TIMEZONE,
+    // Clock display
+    SETTING_CLOCK_STYLE,
+    SETTING_STATUS_BAR_CLOCK,
     // OTA firmware update
     SETTING_OTA_CHANNEL,
     SETTING_OTA_UPDATE_AVAILABLE,
@@ -274,6 +277,8 @@ typedef struct {
   PrinterAlignment printer_alignment; // Text alignment
   char flappy_ghost_name[65];
   char selected_timezone[25];
+  uint8_t clock_style;   // Clock view face: 0 = Digital, 1 = Analog
+  bool status_bar_clock; // Show the clock in the status bar centre
   char selected_hex_accent_color[25];
   int gps_rx_pin;
   uint32_t gps_baud_rate;      // 0 = use Kconfig default (CONFIG_GPS_UART_BAUD_RATE)
@@ -423,6 +428,11 @@ bool settings_get_rts_enabled(const FSettings *settings);
 
 void settings_set_timezone_str(FSettings *settings, const char *Name);
 const char *settings_get_timezone_str(const FSettings *settings);
+
+void settings_set_clock_style(FSettings *settings, uint8_t style);
+uint8_t settings_get_clock_style(const FSettings *settings);
+void settings_set_status_bar_clock(FSettings *settings, bool enabled);
+bool settings_get_status_bar_clock(const FSettings *settings);
 
 void settings_set_accent_color_str(FSettings *settings, const char *Name);
 const char *settings_get_accent_color_str(const FSettings *settings);

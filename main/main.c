@@ -218,6 +218,10 @@ time_t timegm(struct tm *tm) {
     int y = tm->tm_year + 1900;
     int m = tm->tm_mon + 1;
     int d = tm->tm_mday;
+    // Callers (RTC restore, minmea) can hand us unvalidated fields; clamp the
+    // month so days_before_month[] can never be indexed out of range.
+    if (m < 1) m = 1;
+    if (m > 12) m = 12;
     // Days from 1970-01-01 to year y, month m, day d
     static const int days_before_month[12] = {
         0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334
@@ -1299,10 +1303,21 @@ void app_main(void) {
     // the fields as local time, shifting the restored clock by the timezone
     // offset; timegm() interprets the fields as UTC instead.
     RTC_Date rtc_time;
-    if (rtc_get_datetime(&rtc_time) == ESP_OK) {
+    bool rtc_valid = false;
+    bool fields_ok = false;
+    if (rtc_check_time_valid(&rtc_valid) != ESP_OK) {
+        ESP_LOGW(TAG, "Failed to read RTC validity flags, keeping default time");
+    } else if (!rtc_valid) {
+        ESP_LOGW(TAG, "RTC time not valid (power lost/oscillator stopped), keeping default time");
+    } else if (rtc_get_datetime(&rtc_time) == ESP_OK) {
         struct timeval tv = {0};
         struct tm tm = {0};
-        
+
+        fields_ok = rtc_time.month >= 1 && rtc_time.month <= 12 &&
+                    rtc_time.day >= 1 && rtc_time.day <= 31 &&
+                    rtc_time.hour <= 23 && rtc_time.minute <= 59 &&
+                    rtc_time.second <= 59;
+
         tm.tm_year = rtc_time.year - 1900;
         tm.tm_mon = rtc_time.month - 1;
         tm.tm_mday = rtc_time.day;
@@ -1314,7 +1329,7 @@ void app_main(void) {
         tv.tv_sec = timegm(&tm);
         tv.tv_usec = 0;
         
-        if (tv.tv_sec > 1600000000) { // Valid time (after Sept 2020)
+        if (fields_ok && tv.tv_sec > 1600000000) { // Valid time (after Sept 2020)
             settimeofday(&tv, NULL);
             ESP_LOGI(TAG, "System time synchronized from RTC: %04d-%02d-%02d %02d:%02d:%02d", 
                      rtc_time.year, rtc_time.month, rtc_time.day, 

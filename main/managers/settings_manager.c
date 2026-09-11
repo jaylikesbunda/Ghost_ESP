@@ -63,6 +63,8 @@ static const char *NVS_BOARD_TYPE_KEY = "board_type";
 static const char *NVS_CUSTOM_PIN_CONFIG_KEY = "custom_pin_config";
 static const char *NVS_FLAPPY_GHOST_NAME = "flap_name";
 static const char *NVS_TIMEZONE_NAME = "sel_tz";
+static const char *NVS_CLOCK_STYLE_KEY = "clock_style";
+static const char *NVS_STATUS_BAR_CLOCK_KEY = "statusbar_clk";
 static const char *NVS_ACCENT_COLOR = "sel_ac";
 static const char *NVS_GPS_RX_PIN = "gps_rx_pin";
 static const char *NVS_GPS_BAUD_KEY = "gps_baud";
@@ -232,6 +234,8 @@ void settings_set_defaults(FSettings *settings) {
   strcpy(settings->flappy_ghost_name, "Bob");
   strcpy(settings->selected_hex_accent_color, "#ffffff");
   strcpy(settings->selected_timezone, "MST7MDT,M3.2.0,M11.1.0");
+  settings->clock_style = 0;      // Digital
+  settings->status_bar_clock = true;
   settings->gps_rx_pin = 0;
   settings->gps_baud_rate = 0; // 0 = use CONFIG_GPS_UART_BAUD_RATE
   settings->display_timeout_ms = 30000; // Default to 30 seconds
@@ -491,6 +495,18 @@ void settings_load(FSettings *settings) {
                     &str_size);
   if (err != ESP_OK) {
     printf("Failed to load Timezone String\n");
+  }
+
+  uint8_t clock_style_u8 = 0;
+  err = nvs_get_u8(nvsHandle, NVS_CLOCK_STYLE_KEY, &clock_style_u8);
+  if (err == ESP_OK) {
+    settings->clock_style = clock_style_u8;
+  }
+
+  uint8_t status_bar_clock_u8 = 1;
+  err = nvs_get_u8(nvsHandle, NVS_STATUS_BAR_CLOCK_KEY, &status_bar_clock_u8);
+  if (err == ESP_OK) {
+    settings->status_bar_clock = (bool)status_bar_clock_u8;
   }
 
   str_size = sizeof(settings->selected_hex_accent_color);
@@ -1539,6 +1555,14 @@ void settings_persist_setting(SettingsType setting) {
             err = nvs_set_str(nvsHandle, NVS_TIMEZONE_NAME, G_Settings.selected_timezone);
             key = NVS_TIMEZONE_NAME;
             break;
+        case SETTING_CLOCK_STYLE:
+            err = nvs_set_u8(nvsHandle, NVS_CLOCK_STYLE_KEY, G_Settings.clock_style);
+            key = NVS_CLOCK_STYLE_KEY;
+            break;
+        case SETTING_STATUS_BAR_CLOCK:
+            err = nvs_set_u8(nvsHandle, NVS_STATUS_BAR_CLOCK_KEY, G_Settings.status_bar_clock ? 1 : 0);
+            key = NVS_STATUS_BAR_CLOCK_KEY;
+            break;
         default:
             ESP_LOGW(TAG, "Unknown setting type to persist: %d", setting);
             return;
@@ -1628,6 +1652,27 @@ const char *settings_get_timezone_str(const FSettings *settings) {
   return settings->selected_timezone;
 }
 
+void settings_set_clock_style(FSettings *settings, uint8_t style) {
+  if (settings) {
+    /* 0 = Digital, 1 = Analog, 2 = Segment */
+    settings->clock_style = (style > 2) ? 2 : style;
+  }
+}
+
+uint8_t settings_get_clock_style(const FSettings *settings) {
+  return settings ? settings->clock_style : 0;
+}
+
+void settings_set_status_bar_clock(FSettings *settings, bool enabled) {
+  if (settings) {
+    settings->status_bar_clock = enabled;
+  }
+}
+
+bool settings_get_status_bar_clock(const FSettings *settings) {
+  return settings ? settings->status_bar_clock : true;
+}
+
 void settings_set_accent_color_str(FSettings *settings, const char *Name) {
   strncpy(settings->selected_hex_accent_color, Name,
           sizeof(settings->selected_hex_accent_color) - 1);
@@ -1706,6 +1751,8 @@ esp_err_t settings_save(const FSettings *settings) {
     NVS_SET(nvs_set_u8(nvsHandle, NVS_MENU_LAYOUT_KEY, (uint8_t)settings->menu_layout));
     NVS_SET(nvs_set_u8(nvsHandle, NVS_CAROUSEL_INVERT_KEY, settings->carousel_invert_direction ? 1 : 0));
     NVS_SET(nvs_set_str(nvsHandle, NVS_TIMEZONE_NAME, settings->selected_timezone));
+    NVS_SET(nvs_set_u8(nvsHandle, NVS_CLOCK_STYLE_KEY, settings->clock_style));
+    NVS_SET(nvs_set_u8(nvsHandle, NVS_STATUS_BAR_CLOCK_KEY, settings->status_bar_clock ? 1 : 0));
     NVS_SET(nvs_set_u8(nvsHandle, NVS_WIFI_COUNTRY_KEY, settings->wifi_country));
     NVS_SET(nvs_set_str(nvsHandle, NVS_WIGLE_API_KEY, settings->wigle_api_key));
     NVS_SET(nvs_set_u8(nvsHandle, NVS_WIGLE_DONATE_KEY, settings->wigle_donate ? 1 : 0));

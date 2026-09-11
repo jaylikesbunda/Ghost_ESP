@@ -381,6 +381,12 @@ void handle_help(int argc, char **argv) {
         glog("timezone\n");
         glog("    Description: Set the display timezone for the clock view.\n");
         glog("    Usage: timezone <TZ_STRING>\n\n");
+        glog("clockstyle\n");
+        glog("    Description: Switch the Clock view between digital, analog and segment faces.\n");
+        glog("    Usage: clockstyle [digital|analog|segment|toggle|status]\n\n");
+        glog("statusbarclock\n");
+        glog("    Description: Show or hide the clock in the status bar centre.\n");
+        glog("    Usage: statusbarclock [on|off|toggle|status]\n\n");
         glog("webauth\n");
         glog("    Description: Enable/disable web authentication.\n");
         glog("    Usage: webauth [on|off|toggle|status]\n\n");

@@ -1,5 +1,6 @@
 #include "managers/display_manager.h"
 #include "driver/gpio.h"
+#include <time.h>
 #include "esp_sleep.h"
 #include "esp_timer.h"
 #include "esp_log.h"
@@ -416,6 +417,25 @@ lv_obj_t *sd_label = NULL;
 lv_obj_t *battery_label = NULL;
 lv_obj_t *level_label = NULL;
 lv_obj_t *mainlabel = NULL;
+lv_obj_t *status_clock_label = NULL;
+/* Title max width with/without the centre clock (0 = clock not present). */
+static lv_coord_t s_status_title_w = 0;
+static lv_coord_t s_status_title_w_clock = 0;
+
+/* A narrow bar cannot hold the title, a centred clock and the full icon
+ * cluster at once. There, the centre alternates the clock with the Ghostchi
+ * level and the level leaves the icon cluster (which also frees room for the
+ * icons). Large panels have space for both at once, so they keep the badge. */
+#if !GUI_LARGE_SCREEN && !defined(CONFIG_CROWPANEL_1P28_ROTARY)
+#define STATUS_CLOCK_CYCLES_LEVEL 1
+#else
+#define STATUS_CLOCK_CYCLES_LEVEL 0
+#endif
+#define STATUS_CLOCK_CYCLE_TIME_MS  8000
+#define STATUS_CLOCK_CYCLE_LEVEL_MS 2500
+
+static int64_t s_clock_phase_start_us = 0;
+static bool s_clock_cycle_active = false;
 
 static View *s_lockscreen_return_view = NULL;
 
@@ -1440,9 +1460,86 @@ void update_status_bar(bool wifi_enabled, bool bt_enabled, bool sd_card_mounted,
   }
 }
 
+/* Format the status-bar centre clock. 12-hour, no seconds, matching the
+ * Clock view's digital face (e.g. "3:45 PM"). */
+static void status_clock_format(char *buf, size_t len) {
+  time_t now = time(NULL);
+  struct tm tmv;
+  localtime_r(&now, &tmv);
+  int hour_12 = tmv.tm_hour % 12;
+  if (hour_12 == 0) hour_12 = 12;
+  snprintf(buf, len, "%d:%02d %s", hour_12, tmv.tm_min, tmv.tm_hour >= 12 ? "PM" : "AM");
+}
+
 static void status_update_cb(lv_timer_t *timer) {
   if (!status_bar || !lv_obj_is_valid(status_bar)) return;
   if (is_backlight_off) return; // Skip updates when backlight is off
+
+  /* Ghostchi level, computed once per tick: the icon-cluster badge and the
+   * centre label (when it alternates with the clock) both read it. */
+  char level_text[16] = "";
+  if (level_label && lv_obj_is_valid(level_label)) {
+    ghostchi_snapshot_t snap;
+    ghostchi_manager_get_snapshot(&snap);
+    static const unsigned int lv_xp[] = {
+        0, 10, 40, 90, 160, 250, 360, 490, 640, 810, 1000,
+        1210, 1440, 1690, 1960, 2250, 2560, 2890, 3240, 3610, 4000,
+        4410, 4840, 5290, 5760, 6250, 6760, 7290, 7840, 8410, 9000,
+        9610, 10240, 10890, 11560, 12250, 12960, 13690, 14440, 15210, 16000,
+        16810, 17640, 18490, 19360, 20250, 21160, 22090, 23040, 24010, 25000
+    };
+    unsigned int level = 1;
+    unsigned int xp = snap.total_xp;
+    for (size_t i = 1; i < sizeof(lv_xp) / sizeof(lv_xp[0]); ++i) {
+      if (xp < lv_xp[i]) { level = (unsigned int)i; break; }
+      if (i == sizeof(lv_xp) / sizeof(lv_xp[0]) - 1) level = (unsigned int)i;
+    }
+    snprintf(level_text, sizeof(level_text), "Lv%u", level);
+  }
+
+#if STATUS_CLOCK_CYCLES_LEVEL
+  bool cycle_level = false;
+#endif
+  bool level_in_centre = false;
+  if (status_clock_label && lv_obj_is_valid(status_clock_label)) {
+    bool clock_on = settings_get_status_bar_clock(&G_Settings);
+    if (clock_on) {
+#if STATUS_CLOCK_CYCLES_LEVEL
+      cycle_level = true;
+      int64_t now_us = esp_timer_get_time();
+      if (!s_clock_cycle_active) {
+        s_clock_cycle_active = true;
+        s_clock_phase_start_us = now_us;
+      }
+      int64_t elapsed_ms = (now_us - s_clock_phase_start_us) / 1000;
+      if (elapsed_ms >= STATUS_CLOCK_CYCLE_TIME_MS + STATUS_CLOCK_CYCLE_LEVEL_MS) {
+        s_clock_phase_start_us = now_us;
+        elapsed_ms = 0;
+      }
+      level_in_centre = (elapsed_ms >= STATUS_CLOCK_CYCLE_TIME_MS) && (level_text[0] != '\0');
+#endif
+      char clock_text[16];
+      if (level_in_centre) {
+        snprintf(clock_text, sizeof(clock_text), "%s", level_text);
+      } else {
+        status_clock_format(clock_text, sizeof(clock_text));
+      }
+      if (strcmp(lv_label_get_text(status_clock_label), clock_text) != 0) {
+        lv_label_set_text(status_clock_label, clock_text);
+      }
+      lv_obj_clear_flag(status_clock_label, LV_OBJ_FLAG_HIDDEN);
+    } else {
+      s_clock_cycle_active = false;
+      lv_obj_add_flag(status_clock_label, LV_OBJ_FLAG_HIDDEN);
+    }
+    /* Restore the title's full width when the clock is off. */
+    if (mainlabel && lv_obj_is_valid(mainlabel) && s_status_title_w_clock > 0) {
+      lv_coord_t want_w = clock_on ? s_status_title_w_clock : s_status_title_w;
+      if (lv_obj_get_width(mainlabel) != want_w) {
+        lv_obj_set_width(mainlabel, want_w);
+      }
+    }
+  }
 
   bool HasBluetooth;
 #if !defined(CONFIG_IDF_TARGET_ESP32S2) && !defined(GHOSTESP_NO_NATIVE_BLE)
@@ -1469,29 +1566,22 @@ static void status_update_cb(lv_timer_t *timer) {
   update_status_bar(true, HasBluetooth, sd_card_manager.is_initialized,
                     battery_percentage, settings_get_power_save_enabled(&G_Settings), server_running, is_charging);
 
-  if (level_label && lv_obj_is_valid(level_label)) {
-    ghostchi_snapshot_t snap;
-    ghostchi_manager_get_snapshot(&snap);
-    static const unsigned int lv_xp[] = {
-        0, 10, 40, 90, 160, 250, 360, 490, 640, 810, 1000,
-        1210, 1440, 1690, 1960, 2250, 2560, 2890, 3240, 3610, 4000,
-        4410, 4840, 5290, 5760, 6250, 6760, 7290, 7840, 8410, 9000,
-        9610, 10240, 10890, 11560, 12250, 12960, 13690, 14440, 15210, 16000,
-        16810, 17640, 18490, 19360, 20250, 21160, 22090, 23040, 24010, 25000
-    };
-    unsigned int level = 1;
-    unsigned int xp = snap.total_xp;
-    for (size_t i = 1; i < sizeof(lv_xp) / sizeof(lv_xp[0]); ++i) {
-      if (xp < lv_xp[i]) { level = (unsigned int)i; break; }
-      if (i == sizeof(lv_xp) / sizeof(lv_xp[0]) - 1) level = (unsigned int)i;
-    }
-    char level_text[16];
-    snprintf(level_text, sizeof(level_text), "Lv%u", level);
+  if (level_label && lv_obj_is_valid(level_label) && level_text[0] != '\0') {
     if (strcmp(lv_label_get_text(level_label), level_text) != 0) {
       lv_label_set_text(level_label, level_text);
     }
 #ifndef CONFIG_CROWPANEL_1P28_ROTARY
+#if STATUS_CLOCK_CYCLES_LEVEL
+    /* While the centre alternates the level in, the badge stands down so the
+     * two never show at once and the icons keep a stable position. */
+    if (cycle_level) {
+      lv_obj_add_flag(level_label, LV_OBJ_FLAG_HIDDEN);
+    } else {
+      lv_obj_clear_flag(level_label, LV_OBJ_FLAG_HIDDEN);
+    }
+#else
     lv_obj_clear_flag(level_label, LV_OBJ_FLAG_HIDDEN);
+#endif
 #endif
   }
 }
@@ -1528,6 +1618,9 @@ void display_manager_update_status_bar_color(void) {
   }
   if (level_label && lv_obj_is_valid(level_label)) {
     lv_obj_set_style_text_color(level_label, text_color, 0);
+  }
+  if (status_clock_label && lv_obj_is_valid(status_clock_label)) {
+    lv_obj_set_style_text_color(status_clock_label, primary_text, 0);
   }
 
   status_update_cb(NULL);
@@ -1568,6 +1661,8 @@ void display_manager_add_status_bar(const char *CurrentMenuName) {
         sd_label = NULL;
         battery_label = NULL;
         level_label = NULL;
+        status_clock_label = NULL;
+        s_clock_cycle_active = false; /* fresh bar starts on the time phase */
         lvgl_obj_del_safe(&old_bar);
     }
     status_bar = lv_obj_create(lv_scr_act());
@@ -1695,6 +1790,42 @@ void display_manager_add_status_bar(const char *CurrentMenuName) {
   lv_obj_set_style_text_color(battery_label, status_text_color, 0);
   lv_obj_set_style_text_font(battery_label, accessibility_get_font_icon(), 0);
   lv_obj_add_flag(battery_label, LV_OBJ_FLAG_HIDDEN);
+
+  /* Centre clock. The round rotary aperture has no room between its centred
+   * title and the icons, so it is skipped there. */
+#ifndef CONFIG_CROWPANEL_1P28_ROTARY
+  status_clock_label = lv_label_create(status_bar);
+  lv_obj_set_style_text_color(status_clock_label, lv_color_hex(theme_palette_get_text(theme)), 0);
+  lv_obj_set_style_text_font(status_clock_label, accessibility_get_font_small(), 0);
+  lv_obj_align(status_clock_label, LV_ALIGN_CENTER, 0, 0);
+  {
+    char clock_text[16];
+    status_clock_format(clock_text, sizeof(clock_text));
+    lv_label_set_text(status_clock_label, clock_text);
+  }
+  lv_obj_add_flag(status_clock_label, LV_OBJ_FLAG_HIDDEN);
+#if STATUS_CLOCK_CYCLES_LEVEL
+  /* The level badge leaves the icon cluster on narrow bars, so the centre
+   * becomes its tap target for the Ghostchi screen. */
+  lv_obj_add_flag(status_clock_label, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_add_event_cb(status_clock_label, level_label_click_cb, LV_EVENT_CLICKED, NULL);
+#endif
+
+  /* Keep the title clear of the centred clock: cap its width at half the bar
+   * minus the clock's half-width, instead of letting it run to mid-screen.
+   * Remember the original width so turning the clock off restores it. */
+  lv_obj_update_layout(status_bar);
+#if GUI_LARGE_SCREEN || defined(CONFIG_CROWPANEL_ADVANCE_SMALL_SPI_LCD)
+  s_status_title_w = LV_HOR_RES / 2;
+#else
+  s_status_title_w = LV_HOR_RES / 2 - GUI_SAFEAREA_HOR;
+#endif
+  s_status_title_w_clock = LV_HOR_RES / 2 - GUI_SAFEAREA_HOR
+                           - lv_obj_get_width(status_clock_label) / 2 - GUI_GRID;
+  if (s_status_title_w_clock < 40) s_status_title_w_clock = 40;
+  lv_obj_set_width(mainlabel, settings_get_status_bar_clock(&G_Settings)
+                                 ? s_status_title_w_clock : s_status_title_w);
+#endif
 
   bool HasBluetooth;
 #if !defined(CONFIG_IDF_TARGET_ESP32S2) && !defined(GHOSTESP_NO_NATIVE_BLE)

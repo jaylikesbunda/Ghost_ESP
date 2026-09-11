@@ -122,6 +122,8 @@ static cJSON *settings_to_json_object(const FSettings *s) {
 
   cJSON_AddStringToObject(o, "flappy_ghost_name", s->flappy_ghost_name);
   cJSON_AddStringToObject(o, "selected_timezone", s->selected_timezone);
+  cJSON_AddNumberToObject(o, "clock_style", (double)s->clock_style);
+  cJSON_AddBoolToObject(o, "status_bar_clock", s->status_bar_clock);
   cJSON_AddStringToObject(o, "selected_hex_accent_color", s->selected_hex_accent_color);
   cJSON_AddNumberToObject(o, "gps_rx_pin", (double)s->gps_rx_pin);
   cJSON_AddNumberToObject(o, "gps_baud_rate", (double)s->gps_baud_rate);
@@ -243,6 +245,10 @@ static void json_apply_to_settings(FSettings *s, const cJSON *root) {
 
   jstrcpy_field(s->flappy_ghost_name, sizeof(s->flappy_ghost_name), root, "flappy_ghost_name");
   jstrcpy_field(s->selected_timezone, sizeof(s->selected_timezone), root, "selected_timezone");
+  s->clock_style = (uint8_t)jget_int_clamp(root, "clock_style", s->clock_style, 0, 2);
+  if (cJSON_GetObjectItemCaseSensitive(root, "status_bar_clock")) {
+    s->status_bar_clock = jget_bool(root, "status_bar_clock", s->status_bar_clock);
+  }
   jstrcpy_field(s->selected_hex_accent_color, sizeof(s->selected_hex_accent_color), root,
                 "selected_hex_accent_color");
   s->gps_rx_pin = jget_int_clamp(root, "gps_rx_pin", s->gps_rx_pin, -1, 255);
