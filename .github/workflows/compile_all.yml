@@ -36,6 +36,8 @@ jobs:
     strategy:
       matrix:
         target:
+          - { name: "S3-WROOM1U-8N8R-Display", idf_target: "esp32s3", sdkconfig_file: "configs/sdkconfig.s3wroom1u_8n8r_display", zip_name: "S3WROOM1U_8N8R_Display.zip" }
+          - { name: "S3-WROOM1U-8N8R-No-Display", idf_target: "esp32s3", sdkconfig_file: "configs/sdkconfig.s3wroom1u_8n8r_nodisplay", zip_name: "S3WROOM1U_8N8R_No_Display.zip" }
           - { name: "esp32-generic",          idf_target: "esp32",   sdkconfig_file: "configs/sdkconfig.default.esp32",                   zip_name: "esp32-generic.zip" }
           - { name: "esp32s2-generic",         idf_target: "esp32s2", sdkconfig_file: "configs/sdkconfig.default.esp32s2",                 zip_name: "esp32s2-generic.zip" }
           - { name: "esp32s3-generic",         idf_target: "esp32s3", sdkconfig_file: "configs/sdkconfig.default.esp32s3",                 zip_name: "esp32s3-generic.zip" }
