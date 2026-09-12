@@ -168,6 +168,9 @@ static cJSON *settings_to_json_object(const FSettings *s) {
   cJSON_AddBoolToObject(o, "carousel_invert_direction", s->carousel_invert_direction);
   cJSON_AddNumberToObject(o, "neopixel_max_brightness", (double)s->neopixel_max_brightness);
   cJSON_AddBoolToObject(o, "encoder_invert_direction", s->encoder_invert_direction);
+#ifdef CONFIG_USE_ENCODER
+  cJSON_AddBoolToObject(o, "encoder_legacy_latch", s->encoder_legacy_latch);
+#endif
   cJSON_AddBoolToObject(o, "auto_save_scans", s->auto_save_scans);
   cJSON_AddBoolToObject(o, "setup_complete", s->setup_complete);
   cJSON_AddNumberToObject(o, "wifi_country", (double)s->wifi_country);
@@ -337,6 +340,12 @@ static void json_apply_to_settings(FSettings *s, const cJSON *root) {
     s->encoder_invert_direction =
         jget_bool(root, "encoder_invert_direction", s->encoder_invert_direction);
   }
+#ifdef CONFIG_USE_ENCODER
+  if (cJSON_GetObjectItemCaseSensitive(root, "encoder_legacy_latch")) {
+    s->encoder_legacy_latch =
+        jget_bool(root, "encoder_legacy_latch", s->encoder_legacy_latch);
+  }
+#endif
   if (cJSON_GetObjectItemCaseSensitive(root, "auto_save_scans")) {
     s->auto_save_scans = jget_bool(root, "auto_save_scans", s->auto_save_scans);
   }

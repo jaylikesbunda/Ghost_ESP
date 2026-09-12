@@ -553,6 +553,24 @@ static joystick_t enc_button;
 static joystick_t exit_button;
 static TaskHandle_t encoder_poll_task_handle = NULL;
 static void encoder_poll_task(void *pvParameters);
+
+static encoder_latch_mode_t display_manager_encoder_latch_mode(void)
+{
+    encoder_latch_mode_t mode = ENCODER_LATCH_FOUR3;
+#ifdef CONFIG_BUILD_CONFIG_TEMPLATE
+    if (strcmp(CONFIG_BUILD_CONFIG_TEMPLATE, "LilyGo TEmbedC1101") == 0) {
+        mode = settings_get_encoder_legacy_latch(&G_Settings)
+             ? ENCODER_LATCH_FOUR3
+             : ENCODER_LATCH_TWO03;
+    }
+#endif
+    return mode;
+}
+
+void display_manager_apply_encoder_settings(void)
+{
+    encoder_set_latch_mode(&g_encoder, display_manager_encoder_latch_mode());
+}
 #endif
 
 #define FADE_DURATION_MS GUI_ANIM_TRANSITION
@@ -2504,12 +2522,13 @@ ESP_LOGI(TAG, "T-Deck trackball ISRs registered");
                  ENCODER_LATCH_FOUR3);
     joystick_init(&enc_button, 7, 500 /*hold ms*/, false); // P07 = encoder button
 #else
-    // Direct GPIO encoder (TEmbed C1101)
+    // Direct GPIO encoder. The vendor T-Embed example uses the two-transition
+    // latch mode; other direct-GPIO boards retain the four-transition mode.
     encoder_init(&g_encoder,
                  CONFIG_ENCODER_INA,
                  CONFIG_ENCODER_INB,
                  true,                    /* pull-ups */
-                 ENCODER_LATCH_FOUR3);    /* detented knobs */
+                 display_manager_encoder_latch_mode());
     joystick_init(&enc_button, CONFIG_ENCODER_KEY,
                   500 /*hold ms*/, true);
 

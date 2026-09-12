@@ -2,6 +2,7 @@
 #include "driver/gpio.h"
 #include "esp_timer.h"
 #include "esp_log.h"
+#include <string.h>
 
 #ifdef CONFIG_USE_IO_EXPANDER
 #include "io_manager.h"
@@ -24,6 +25,21 @@ static const int8_t KNOBDIR[16] = {
 static inline uint32_t now_ms(void)
 {
     return (uint32_t)(esp_timer_get_time() / 1000ULL);
+}
+
+static inline bool encoder_acceleration_enabled(const encoder_t *enc)
+{
+#ifdef CONFIG_BUILD_CONFIG_TEMPLATE
+    /* The T-Embed's TWO03 decoder already restores the vendor's 1:1
+     * detent behavior. Do not multiply fast turns into extra menu steps. */
+    if (enc && enc->mode == ENCODER_LATCH_TWO03 &&
+        strcmp(CONFIG_BUILD_CONFIG_TEMPLATE, "LilyGo TEmbedC1101") == 0) {
+        return false;
+    }
+#else
+    (void)enc;
+#endif
+    return true;
 }
 
 void encoder_init(encoder_t *enc,
@@ -79,6 +95,16 @@ void encoder_init(encoder_t *enc,
     enc->rpm_time_index = 0;
     enc->rpm_time_count = 0;
     for (int i = 0; i < ENCODER_RPM_SMOOTHING_SIZE; ++i) enc->rpm_time_diffs_us[i] = 0;
+}
+
+void encoder_set_latch_mode(encoder_t *enc, encoder_latch_mode_t mode)
+{
+    if (!enc || enc->mode == mode) return;
+    enc->mode = mode;
+    enc->position_base_ext = (mode == ENCODER_LATCH_TWO03)
+                           ? (enc->position >> 1)
+                           : (enc->position >> 2);
+    enc->pending_steps = 0;
 }
 
 /* poll-style tick (cheap enough to call from a tight loop or 1 kHz FreeRTOS timer) */
@@ -147,10 +173,12 @@ void encoder_tick(encoder_t *enc)
 
             /* Acceleration */
             int accel_mult = 1;
-            if (diff_us < ENCODER_ACCEL_THRESH_US_2) {
-                accel_mult = 4;
-            } else if (diff_us < ENCODER_ACCEL_THRESH_US_1) {
-                accel_mult = 2;
+            if (encoder_acceleration_enabled(enc)) {
+                if (diff_us < ENCODER_ACCEL_THRESH_US_2) {
+                    accel_mult = 4;
+                } else if (diff_us < ENCODER_ACCEL_THRESH_US_1) {
+                    accel_mult = 2;
+                }
             }
 
             int32_t base_ext = (enc->mode == ENCODER_LATCH_TWO03) ? (enc->position >> 1) : (enc->position >> 2);
@@ -224,4 +252,4 @@ uint32_t encoder_get_rpm(const encoder_t *enc)
     if (avg_diff_us == 0) return 0;
     float rpm = 60000000.0f / (avg_diff_us * 20.0f);
     return (uint32_t)rpm;
-} 
+}

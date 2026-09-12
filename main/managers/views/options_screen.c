@@ -1768,6 +1768,9 @@ static const char * const rgb_mode_options[] = {"Normal", "Rainbow", "Stealth", 
 static const char * const timeout_options[] = {"5s", "10s", "15s", "30s", "60s", "2m", "5m", "Never"};
 static const char *theme_options[THEME_PALETTE_THEME_COUNT];
 static const char * const bool_options[] = {"Off", "On"};
+#ifdef CONFIG_USE_ENCODER
+static const char * const encoder_latch_options[] = {"2 transitions", "4 transitions (legacy)"};
+#endif
 static const char * const log_level_options[] = {"None", "Error", "Warn", "Info", "Debug", "Verbose"};
 static const char * const textcolor_options[] = {"Green", "White", "Red", "Blue", "Yellow", "Cyan", "Magenta", "Orange"};
 static const uint32_t textcolor_values[] = {0x00FF00, 0xFFFFFF, 0xFF0000, 0x0000FF, 0xFFFF00, 0x00FFFF, 0xFF00FF, 0xFFA500};
@@ -1898,6 +1901,7 @@ static SettingsItem settings_items[] = {
     {"Third Control", SETTING_THIRD_CONTROL, bool_options, 2, 0, SETTINGS_CAT_NAVIGATION, false, NULL, SETTING_WIDGET_TOGGLE},
 #ifdef CONFIG_USE_ENCODER
     {"Invert Encoder", SETTING_ENCODER_INVERT, bool_options, 2, 0, SETTINGS_CAT_NAVIGATION, true, "CONFIG_USE_ENCODER", SETTING_WIDGET_TOGGLE},
+    {"T-Embed Detent", SETTING_ENCODER_LATCH, encoder_latch_options, 2, 0, SETTINGS_CAT_NAVIGATION, true, "CONFIG_USE_ENCODER", SETTING_WIDGET_VALUE_CYCLE},
 #endif
 
 #ifdef CONFIG_WITH_STATUS_DISPLAY
@@ -2085,6 +2089,15 @@ static const char *settings_item_value_text(SettingsItem *item) {
 
 static bool settings_item_is_visible(const SettingsItem *item) {
     if (!item) return false;
+#ifdef CONFIG_USE_ENCODER
+    if (item->setting_type == SETTING_ENCODER_LATCH) {
+#ifdef CONFIG_BUILD_CONFIG_TEMPLATE
+        if (strcmp(CONFIG_BUILD_CONFIG_TEMPLATE, "LilyGo TEmbedC1101") != 0) return false;
+#else
+        return false;
+#endif
+    }
+#endif
 #if GHOSTESP_OTA_SUPPORTED
     if (item->setting_type == SETTING_OTA_INSTALL_FROM_SD && !ota_sd_install_available()) {
         return false;
@@ -4544,6 +4557,9 @@ static void load_current_settings_values(void) {
             case SETTING_ENCODER_INVERT:
                 settings_items[i].current_value = settings_get_encoder_invert_direction(&G_Settings) ? 1 : 0;
                 break;
+            case SETTING_ENCODER_LATCH:
+                settings_items[i].current_value = settings_get_encoder_legacy_latch(&G_Settings) ? 1 : 0;
+                break;
 #endif
 #ifdef CONFIG_WITH_STATUS_DISPLAY
             case SETTING_IDLE_ANIMATION:
@@ -4956,6 +4972,10 @@ static void apply_setting_change(int setting_index, int new_value) {
         #ifdef CONFIG_USE_ENCODER
         case SETTING_ENCODER_INVERT:
             settings_set_encoder_invert_direction(&G_Settings, new_value == 1);
+            break;
+        case SETTING_ENCODER_LATCH:
+            settings_set_encoder_legacy_latch(&G_Settings, new_value == 1);
+            display_manager_apply_encoder_settings();
             break;
         #endif
 #ifdef CONFIG_WITH_STATUS_DISPLAY
@@ -6562,6 +6582,38 @@ void handle_hardware_button_press_options(InputEvent *event) {
             return;
         }
 
+        if (govee_detail_view && current_wifi_menu_state == WIFI_MENU_GOVEE_DETAILS) {
+            if (button == 2) {
+                detail_view_step_up(govee_detail_view);
+            } else if (button == 4) {
+                detail_view_step_down(govee_detail_view);
+            } else if (button == 1) {
+                lv_obj_t *obj = detail_view_get_selected_obj(govee_detail_view);
+                if (obj && lv_obj_is_valid(obj)) {
+                    lv_event_send(obj, LV_EVENT_CLICKED, NULL);
+                }
+            } else if (button == 0 || button == 3) {
+                govee_detail_back_cb(NULL);
+            }
+            return;
+        }
+
+        if (enum_detail_view && current_wifi_menu_state == WIFI_MENU_ENUM_DETAILS) {
+            if (button == 2) {
+                detail_view_step_up(enum_detail_view);
+            } else if (button == 4) {
+                detail_view_step_down(enum_detail_view);
+            } else if (button == 1) {
+                lv_obj_t *obj = detail_view_get_selected_obj(enum_detail_view);
+                if (obj && lv_obj_is_valid(obj)) {
+                    lv_event_send(obj, LV_EVENT_CLICKED, NULL);
+                }
+            } else if (button == 0 || button == 3) {
+                enum_detail_back_cb(NULL);
+            }
+            return;
+        }
+
         if (sweep_detail_view) {
             if (button == 2) {
                 detail_view_step_up(sweep_detail_view);
@@ -7094,6 +7146,28 @@ void handle_hardware_button_press_options(InputEvent *event) {
             }
             return;
         }
+        if (govee_detail_view && current_wifi_menu_state == WIFI_MENU_GOVEE_DETAILS) {
+            if (event->data.encoder.button) {
+                lv_obj_t *obj = detail_view_get_selected_obj(govee_detail_view);
+                if (obj && lv_obj_is_valid(obj)) lv_event_send(obj, LV_EVENT_CLICKED, NULL);
+            } else if (event->data.encoder.direction < 0) {
+                detail_view_step_up(govee_detail_view);
+            } else if (event->data.encoder.direction > 0) {
+                detail_view_step_down(govee_detail_view);
+            }
+            return;
+        }
+        if (enum_detail_view && current_wifi_menu_state == WIFI_MENU_ENUM_DETAILS) {
+            if (event->data.encoder.button) {
+                lv_obj_t *obj = detail_view_get_selected_obj(enum_detail_view);
+                if (obj && lv_obj_is_valid(obj)) lv_event_send(obj, LV_EVENT_CLICKED, NULL);
+            } else if (event->data.encoder.direction < 0) {
+                detail_view_step_up(enum_detail_view);
+            } else if (event->data.encoder.direction > 0) {
+                detail_view_step_down(enum_detail_view);
+            }
+            return;
+        }
         if (sweep_detail_view) {
             if (event->data.encoder.button) {
                 lv_obj_t *obj = detail_view_get_selected_obj(sweep_detail_view);
@@ -7102,6 +7176,26 @@ void handle_hardware_button_press_options(InputEvent *event) {
                 detail_view_step_up(sweep_detail_view);
             } else if (event->data.encoder.direction > 0) {
                 detail_view_step_down(sweep_detail_view);
+            }
+            return;
+        }
+
+        /* Windowed result lists use a fixed pool of visible rows.  The
+         * selected index is an index into the backing scan, not a child index
+         * in menu_container, so route encoder activation through the same
+         * callback used by the virtual row click handler. */
+        if (vlist_kind_for_state() != VLIST_NONE && options_view_is_virtual(g_options_view)) {
+            if (event->data.encoder.button) {
+                int count = options_view_virtual_count(g_options_view);
+                if (selected_item_index < 0 || selected_item_index >= count) {
+                    back_event_cb(NULL);
+                } else {
+                    vlist_activate(selected_item_index, NULL);
+                }
+            } else if (event->data.encoder.direction < 0) {
+                select_option_item(selected_item_index - 1);
+            } else if (event->data.encoder.direction > 0) {
+                select_option_item(selected_item_index + 1);
             }
             return;
         }

@@ -100,6 +100,7 @@ typedef enum {
 #endif
 #ifdef CONFIG_USE_ENCODER
     SETTING_ENCODER_INVERT,
+    SETTING_ENCODER_LATCH,
 #endif
 #if CONFIG_IDF_TARGET_ESP32S3
     SETTING_USB_HOST_MODE,
@@ -327,6 +328,9 @@ typedef struct {
   uint32_t status_idle_timeout_ms; // delay before starting idle animation
 #endif
   bool encoder_invert_direction;
+#ifdef CONFIG_USE_ENCODER
+  bool encoder_legacy_latch;
+#endif
   bool setup_complete;
   bool auto_save_scans;
   uint8_t wifi_country;
@@ -584,6 +588,10 @@ uint8_t settings_get_neopixel_max_brightness(const FSettings *settings);
 // Encoder direction inversion settings
 void settings_set_encoder_invert_direction(FSettings *settings, bool enabled);
 bool settings_get_encoder_invert_direction(const FSettings *settings);
+#ifdef CONFIG_USE_ENCODER
+void settings_set_encoder_legacy_latch(FSettings *settings, bool enabled);
+bool settings_get_encoder_legacy_latch(const FSettings *settings);
+#endif
 
 void settings_set_auto_save_scans(FSettings *settings, bool enabled);
 bool settings_get_auto_save_scans(const FSettings *settings);

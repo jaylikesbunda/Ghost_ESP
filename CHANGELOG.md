@@ -38,6 +38,8 @@ Untagged entries are by ([@jaylikesbunda](https://github.com/jaylikesbunda)). A 
   - Chameleon Ultra. Adapted from `chameleon_manager.c` and [Nordic docs](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/libraries/bluetooth_services/services/nus.html)
 
 ### Changed
+- Improved encoder navigation in grid app menus
+- Added a T-Embed detent mode setting
 - Defaulted the terminal to white small text and improved readability with padding, spacing and colour-coded output
 - Reorganized Settings menu categories for easier navigation
 - Smoothed and improved stability and reliability of the Track RSSI readout and added a warmer/colder trend arrow
@@ -54,6 +56,8 @@ Untagged entries are by ([@jaylikesbunda](https://github.com/jaylikesbunda)). A 
 - Raised the Banshee GhostLink UART to 921600 baud and enlarged the UART receive buffer to 2048 bytes so the higher rate does not increase receive loss
 
 ### Fixed
+- Fixed T-Embed rotary encoder step rate and sensitivity
+- Fixed encoder select in virtual scan-result lists
 - Fixed GhostScript crash when an event listener received an event
 - Fixed BadBLE touch-drag scrolling
 - Fixed CrowPanel display startup configs

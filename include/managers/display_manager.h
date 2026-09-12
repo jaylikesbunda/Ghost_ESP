@@ -82,6 +82,11 @@ extern View lockscreen_view;
  */
 void display_manager_init(void);
 
+#ifdef CONFIG_USE_ENCODER
+/* Apply persisted encoder-specific settings to the live decoder. */
+void display_manager_apply_encoder_settings(void);
+#endif
+
 /**
  * @brief Register a new view.
  */

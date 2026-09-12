@@ -53,6 +53,7 @@ void  encoder_init(encoder_t *enc,
                    int pin_b,
                    bool pullup,
                    encoder_latch_mode_t mode);
+void  encoder_set_latch_mode(encoder_t *enc, encoder_latch_mode_t mode);
 
 void  encoder_tick(encoder_t *enc);                    ///< Call as fast as you like (e.g. from a 1 kHz timer ISR/task)
 int32_t encoder_get_position(const encoder_t *enc);    ///< latched count
@@ -64,4 +65,4 @@ uint32_t encoder_get_rpm(const encoder_t *enc);
 
 #ifdef __cplusplus
 }
-#endif 
+#endif

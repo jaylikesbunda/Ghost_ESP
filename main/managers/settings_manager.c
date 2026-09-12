@@ -100,6 +100,7 @@ static const char *NVS_CAROUSEL_INVERT_KEY = "carr_inv";
 static const char *NVS_NEOPIXEL_MAX_BRIGHTNESS_KEY = "neopixel_bright";
 static const char *NVS_RGB_LED_COUNT_KEY = "rgb_led_cnt";
 static const char *NVS_ENCODER_INVERT_KEY = "enc_inv";
+static const char *NVS_ENCODER_LATCH_KEY = "enc_latch";
 static const char *NVS_AUTO_SAVE_SCANS_KEY = "auto_save_sc";
 static const char *NVS_SETUP_COMPLETE_KEY = "setup_done";
 static const char *NVS_WIFI_COUNTRY_KEY = "wifi_country";
@@ -278,6 +279,9 @@ void settings_set_defaults(FSettings *settings) {
   settings->carousel_invert_direction = false; // Default to non-inverted carousel slide direction
   settings->neopixel_max_brightness = 100; // Default to 100% brightness
   settings->encoder_invert_direction = false;
+#ifdef CONFIG_USE_ENCODER
+  settings->encoder_legacy_latch = false;
+#endif
   settings->rgb_led_count = CONFIG_NUM_LEDS;
   settings->auto_save_scans = true;
   settings->setup_complete = false;
@@ -832,6 +836,14 @@ void settings_load(FSettings *settings) {
   } else {
     settings->encoder_invert_direction = false;
   }
+#ifdef CONFIG_USE_ENCODER
+  err = nvs_get_u8(nvsHandle, NVS_ENCODER_LATCH_KEY, &value_u8);
+  if (err == ESP_OK) {
+    settings->encoder_legacy_latch = (bool)value_u8;
+  } else {
+    settings->encoder_legacy_latch = false;
+  }
+#endif
 
   err = nvs_get_u8(nvsHandle, NVS_SETUP_COMPLETE_KEY, &value_u8);
   if (err == ESP_OK) {
@@ -1308,6 +1320,10 @@ void settings_persist_setting(SettingsType setting) {
         case SETTING_ENCODER_INVERT:
             err = nvs_set_u8(nvsHandle, NVS_ENCODER_INVERT_KEY, G_Settings.encoder_invert_direction);
             key = NVS_ENCODER_INVERT_KEY;
+            break;
+        case SETTING_ENCODER_LATCH:
+            err = nvs_set_u8(nvsHandle, NVS_ENCODER_LATCH_KEY, G_Settings.encoder_legacy_latch);
+            key = NVS_ENCODER_LATCH_KEY;
             break;
 #endif
 #if CONFIG_IDF_TARGET_ESP32S3
@@ -2348,6 +2364,16 @@ void settings_set_encoder_invert_direction(FSettings *settings, bool enabled) {
 bool settings_get_encoder_invert_direction(const FSettings *settings) {
   return settings->encoder_invert_direction;
 }
+
+#ifdef CONFIG_USE_ENCODER
+void settings_set_encoder_legacy_latch(FSettings *settings, bool enabled) {
+  settings->encoder_legacy_latch = enabled;
+}
+
+bool settings_get_encoder_legacy_latch(const FSettings *settings) {
+  return settings->encoder_legacy_latch;
+}
+#endif
 
 void settings_set_setup_complete(FSettings *settings, bool complete) {
   settings->setup_complete = complete;
